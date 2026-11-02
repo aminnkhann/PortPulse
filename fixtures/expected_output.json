@@ -64,6 +64,20 @@
       "threshold_minutes": 30
     },
     {
+      "code": "DELAYED_DELIVERY",
+      "event_id": "CARRIER-LATE-01",
+      "source_id": "carrier_sim",
+      "delay_minutes": 50,
+      "threshold_minutes": 30
+    },
+    {
+      "code": "DELAYED_DELIVERY",
+      "event_id": "COORD-LATE-01",
+      "source_id": "coordinator_sim",
+      "delay_minutes": 68,
+      "threshold_minutes": 30
+    },
+    {
       "code": "EXACT_DUPLICATE",
       "event_id": "CARRIER-REV-02",
       "duplicate_occurrences": 2

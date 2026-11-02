@@ -31,11 +31,13 @@ A vessel's estimated arrival time (ETA) can be updated by several independent so
 | **FR-07** | Expose current ETA, winning source/event, history, and quality warnings through a read-only API. |
 | **FR-08** | Replay the same scenario without duplicating facts or changing the final result. |
 
-**Input contract:** `event_id`, `port_call_id`, `source_id`, `event_time_utc`, `eta_utc`, `schema_version`; `received_at_utc` is assigned at ingestion (or supplied by a fixed test clock for replay). Every timestamp uses an ISO-8601 UTC value. **Output:** trusted ETA, `winning_event_id`, `conflict_flag`, freshness status, event history, and quality issues.
+**Input contract:** `event_id`, `port_call_id`, `source_id`, `event_time_utc`, `received_at_utc`, `eta_utc`, and `schema_version`. The fixture's `received_at_utc` is simulated source/platform receipt time; PostgreSQL separately generates actual `ingested_at_utc` when storing a valid event. Every event timestamp uses ISO-8601 UTC. **Output:** trusted ETA, `winning_event_id`, `conflict_flag`, freshness status, event history, and quality issues.
 
 **Demo rules:** Take the latest event by **event time per source**. Among non-stale sources, the **highest numeric source priority** wins; break ties by event time, then event ID. Flag a conflict if two active sources disagree by **more than 30 minutes**. Mark a source stale after **60 minutes** without an update, measured from an injected `evaluation_time_utc`; if all sources are stale, show the last known ETA labeled **STALE**. These are configurable test assumptions, **not maritime industry thresholds**.
 
 **Quality bar:** Fixed inputs yield the same output; invalid events never change trusted state; rejected payloads retain a reason; automated tests cover the normal case, invalid input, duplicate, late event, conflict, staleness, and replay.
+
+**Current checks:** Run the Step 01–03 unit and database tests with `python -m unittest discover -s tests -v`. PostgreSQL integration tests use `PORTPULSE_TEST_DATABASE_URL`; the GitHub Actions workflow provides a disposable PostgreSQL 16 service.
 
 **Out of scope:** Real vessel feeds, terminal equipment control, predictive ETA/ML, cloud deployment, Power BI, and claims of formal DCSA certification. Add-ons are discussed only after the MVP works.
 
@@ -89,6 +91,7 @@ erDiagram
       string source_id FK
       datetime event_time_utc
       datetime received_at_utc
+      datetime ingested_at_utc
       datetime eta_utc
       string schema_version
     }

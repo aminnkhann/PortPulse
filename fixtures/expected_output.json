@@ -1,0 +1,103 @@
+{
+  "rules_version": "1",
+  "as_of_utc": "2026-01-15T11:00:00Z",
+  "port_call_id": "PC-DEMO-001",
+  "trusted_state": {
+    "status": "TRUSTED",
+    "eta_utc": "2026-01-15T15:40:00Z",
+    "source_id": "coordinator_sim",
+    "event_id": "COORD-DELAYED-01",
+    "source_priority": 3,
+    "applied_rule": "highest-priority non-stale source; latest eligible event_time within source"
+  },
+  "source_states": [
+    {
+      "source_id": "carrier_sim",
+      "status": "ACTIVE",
+      "event_id": "CARRIER-REV-03",
+      "eta_utc": "2026-01-15T16:25:00Z",
+      "last_received_at_utc": "2026-01-15T10:02:00Z",
+      "age_minutes": 58
+    },
+    {
+      "source_id": "coordinator_sim",
+      "status": "ACTIVE",
+      "event_id": "COORD-DELAYED-01",
+      "eta_utc": "2026-01-15T15:40:00Z",
+      "last_received_at_utc": "2026-01-15T10:55:00Z",
+      "age_minutes": 5
+    },
+    {
+      "source_id": "terminal_sim",
+      "status": "STALE",
+      "event_id": "TERMINAL-STALE-01",
+      "eta_utc": "2026-01-15T17:00:00Z",
+      "last_received_at_utc": "2026-01-15T08:35:00Z",
+      "age_minutes": 145
+    }
+  ],
+  "counts": {
+    "message_occurrences": 31,
+    "valid_occurrences": 30,
+    "exact_duplicate_occurrences": 2,
+    "unique_valid_payloads_before_collision_filter": 28,
+    "collision_groups": 1,
+    "collision_variants": 2,
+    "rejected_occurrences": 1,
+    "eligible_unique_events_after_filtering": 26,
+    "events_after_as_of_utc": 0
+  },
+  "issues": [
+    {
+      "code": "CONFLICT",
+      "port_call_id": "PC-DEMO-001",
+      "sources": ["carrier_sim", "coordinator_sim"],
+      "eta_values_utc": ["2026-01-15T16:25:00Z", "2026-01-15T15:40:00Z"],
+      "difference_minutes": 45,
+      "threshold_minutes": 30
+    },
+    {
+      "code": "DELAYED_DELIVERY",
+      "event_id": "COORD-DELAYED-01",
+      "source_id": "coordinator_sim",
+      "delay_minutes": 40,
+      "threshold_minutes": 30
+    },
+    {
+      "code": "EXACT_DUPLICATE",
+      "event_id": "CARRIER-REV-02",
+      "duplicate_occurrences": 2
+    },
+    {
+      "code": "ID_COLLISION",
+      "event_id": "COLLISION-01",
+      "variant_count": 2,
+      "action": "exclude_all_variants"
+    },
+    {
+      "code": "INVALID_SCHEMA_VERSION",
+      "event_id": "INVALID-VERSION-01",
+      "schema_version": "v99",
+      "expected": "v1"
+    },
+    {
+      "code": "OUT_OF_ORDER",
+      "event_id": "CARRIER-LATE-01",
+      "source_id": "carrier_sim",
+      "newer_event_id": "CARRIER-REV-02"
+    },
+    {
+      "code": "OUT_OF_ORDER",
+      "event_id": "COORD-LATE-01",
+      "source_id": "coordinator_sim",
+      "newer_event_id": "COORD-DELAYED-01"
+    },
+    {
+      "code": "STALE_SOURCE",
+      "source_id": "terminal_sim",
+      "last_received_at_utc": "2026-01-15T08:35:00Z",
+      "age_minutes": 145,
+      "threshold_minutes": 120
+    }
+  ]
+}

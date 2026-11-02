@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://portpulse.example/schemas/port_call_event_v1.schema.json",
+  "title": "PortPulse synthetic port-call ETA event v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "event_id",
+    "port_call_id",
+    "source_id",
+    "event_time_utc",
+    "received_at_utc",
+    "eta_utc",
+    "schema_version"
+  ],
+  "properties": {
+    "event_id": {"type": "string", "minLength": 1},
+    "port_call_id": {"type": "string", "minLength": 1},
+    "source_id": {
+      "type": "string",
+      "enum": ["coordinator_sim", "carrier_sim", "terminal_sim"]
+    },
+    "event_time_utc": {"$ref": "#/$defs/utcTimestamp"},
+    "received_at_utc": {"$ref": "#/$defs/utcTimestamp"},
+    "eta_utc": {"$ref": "#/$defs/utcTimestamp"},
+    "schema_version": {"const": "v1"}
+  },
+  "$defs": {
+    "utcTimestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "Z$"
+    }
+  }
+}

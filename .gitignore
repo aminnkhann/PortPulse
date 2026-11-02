@@ -30,3 +30,6 @@ htmlcov/
 .DS_Store
 .idea/
 .vscode/
+
+# Formal planning workbooks and review documents stay outside the source repo
+Formal engineering documents/

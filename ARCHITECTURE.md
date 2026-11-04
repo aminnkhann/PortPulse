@@ -1,6 +1,6 @@
 # Proposed system architecture — PortPulse — Operational Event Integrity & Terminal Readiness
 
-**Status:** Conceptual design for mentor feasibility review. The initial PostgreSQL schema is in `migrations/001_create_core_tables.sql`; ingestion and reconciliation code are not implemented yet. The diagrams are Mermaid and render in compatible Markdown viewers such as GitHub.
+**Status:** Conceptual design for mentor feasibility review. The local PostgreSQL schema and fixture ingestion are implemented in Steps 01–03; deterministic reconciliation and query output remain Steps 04–05. The diagrams are Mermaid and render in compatible Markdown viewers such as GitHub.
 
 **Source design:** [../source_readmes/PortPulse_original_README.md](../source_readmes/PortPulse_original_README.md). This version deliberately shows the smallest end-to-end slice that addresses the business problem rather than every optional tool named in the original README.
 
@@ -54,6 +54,7 @@ erDiagram
         string source_id FK
         datetime event_time_utc
         datetime received_at_utc
+        datetime ingested_at_utc
         datetime eta_utc
         string schema_version
         string canonical_payload_sha256
@@ -83,7 +84,7 @@ erDiagram
     }
 ```
 
-**Schema note:** The diagram reflects the initial migration. `raw_event` uses a surrogate key and a unique `(event_id, canonical_payload_sha256)` pair, so distinct collision variants can both be retained. Reconciliation must exclude every event ID with an `ID_COLLISION` issue. Invalid payloads go to `rejected_event`, whose event ID is nullable because malformed input may not contain one.
+**Schema note:** `received_at_utc` is simulated input time; migration 003 adds database-generated `ingested_at_utc`. Existing rows are backfilled with migration time because their original ingestion time was not recorded. `raw_event` uses a surrogate key and a unique `(event_id, canonical_payload_sha256)` pair, so distinct collision variants can both be retained. Reconciliation must exclude every event ID with an `ID_COLLISION` issue. Invalid payloads go to `rejected_event`, whose event ID is nullable because malformed input may not contain one.
 
 ## 3. Sequence diagram — primary and failure scenario
 

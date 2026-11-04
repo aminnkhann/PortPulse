@@ -1,0 +1,8 @@
+[tool.ruff]
+line-length = 88
+
+[tool.ruff.lint]
+select = ["E", "F", "C90"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10

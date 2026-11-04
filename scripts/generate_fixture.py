@@ -62,7 +62,9 @@ def build_events() -> list[dict[str, str]]:
             event("COORD-REV-01", "coordinator_sim", (10, 0), (10, 5), (15, 45)),
             event("COLLISION-01", "coordinator_sim", (10, 20), (10, 21), (15, 30)),
             event("COLLISION-01", "coordinator_sim", (10, 20), (10, 22), (16, 45)),
-            event("INVALID-VERSION-01", "carrier_sim", (10, 24), (10, 25), (16, 0), "v99"),
+            event(
+                "INVALID-VERSION-01", "carrier_sim", (10, 24), (10, 25), (16, 0), "v99"
+            ),
             event("COORD-DELAYED-01", "coordinator_sim", (10, 15), (10, 55), (15, 40)),
             event("COORD-LATE-01", "coordinator_sim", (9, 50), (10, 58), (15, 50)),
         ]
@@ -77,11 +79,19 @@ def main() -> None:
     assert len(events) == 31, f"expected 31 event occurrences, got {len(events)}"
     assert sum(item["event_id"] == "CARRIER-REV-02" for item in events) == 3
     assert sum(item["event_id"] == "COLLISION-01" for item in events) == 2
-    assert all(events[index]["received_at_utc"] <= events[index + 1]["received_at_utc"] for index in range(len(events) - 1))
+    assert all(
+        events[index]["received_at_utc"] <= events[index + 1]["received_at_utc"]
+        for index in range(len(events) - 1)
+    )
 
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
-    OUTPUT.write_text("".join(json.dumps(item, separators=(",", ":")) + "\n" for item in events), encoding="utf-8")
-    print(f"Wrote {len(events)} synthetic event occurrences to {OUTPUT.relative_to(ROOT)}")
+    OUTPUT.write_text(
+        "".join(json.dumps(item, separators=(",", ":")) + "\n" for item in events),
+        encoding="utf-8",
+    )
+    print(
+        f"Wrote {len(events)} synthetic event occurrences to {OUTPUT.relative_to(ROOT)}"
+    )
 
 
 if __name__ == "__main__":

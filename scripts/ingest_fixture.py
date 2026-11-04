@@ -86,7 +86,9 @@ def read_fixture():
 
         errors = sorted(
             validator.iter_errors(payload),
-            key=lambda error: (tuple(map(str, error.absolute_path)), error.validator or ""),
+            key=lambda error: (
+                tuple(map(str, error.absolute_path)), error.validator or ""
+            ),
         )
         if errors:
             reason, field = validation_reason(errors[0], schema)
@@ -107,7 +109,9 @@ def read_fixture():
 
 def canonical_hash(event):
     fields = {name: event[name] for name in HASH_FIELDS}
-    value = json.dumps(fields, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    value = json.dumps(
+        fields, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+    )
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
@@ -123,7 +127,11 @@ def group_events(events):
         if len(variants) > 1:
             collisions[event_id] = sorted(variants)
         for payload_hash, attempts in sorted(variants.items()):
-            attempts.sort(key=lambda event: (event["received_at_utc"], json.dumps(event, sort_keys=True)))
+            attempts.sort(
+                key=lambda event: (
+                    event["received_at_utc"], json.dumps(event, sort_keys=True)
+                )
+            )
             unique_events.append((attempts[0], payload_hash))
             duplicate_attempts.extend(
                 (event, payload_hash, number)
@@ -190,7 +198,8 @@ def store_fixture(valid, rejected):
 
             for event, _ in unique_events:
                 cursor.execute(
-                    "INSERT INTO port_call (port_call_id) VALUES (%s) ON CONFLICT DO NOTHING",
+                    "INSERT INTO port_call (port_call_id) VALUES (%s) "
+                    "ON CONFLICT DO NOTHING",
                     (event["port_call_id"],),
                 )
                 cursor.execute(
@@ -225,7 +234,11 @@ def store_fixture(valid, rejected):
                 )
 
             for event_id, hashes in collisions.items():
-                event = next(item for item, digest in unique_events if item["event_id"] == event_id)
+                event = next(
+                    item
+                    for item, digest in unique_events
+                    if item["event_id"] == event_id
+                )
                 insert_issue(
                     cursor,
                     "ID_COLLISION",

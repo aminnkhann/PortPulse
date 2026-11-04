@@ -37,7 +37,7 @@ A vessel's estimated arrival time (ETA) can be updated by several independent so
 
 **Quality bar:** Fixed inputs yield the same output; invalid events never change trusted state; rejected payloads retain a reason; automated tests cover the normal case, invalid input, duplicate, late event, conflict, staleness, and replay.
 
-**Current checks:** Run the Step 01–03 unit and database tests with `python -m unittest discover -s tests -v`. PostgreSQL integration tests use `PORTPULSE_TEST_DATABASE_URL`; the GitHub Actions workflow provides a disposable PostgreSQL 16 service.
+**Current checks:** Install project dependencies with `python -m pip install -r requirements.txt`, then run `ruff check .` and `python -m unittest discover -s tests -v`. Ruff checks style and flags functions with cyclomatic complexity above 10. PostgreSQL integration tests use `PORTPULSE_TEST_DATABASE_URL`; the GitHub Actions workflow provides a disposable PostgreSQL 16 service and runs both checks on pushes and pull requests.
 
 **Out of scope:** Real vessel feeds, terminal equipment control, predictive ETA/ML, cloud deployment, Power BI, and claims of formal DCSA certification. Add-ons are discussed only after the MVP works.
 

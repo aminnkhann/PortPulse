@@ -74,8 +74,12 @@ class FixtureTests(unittest.TestCase):
         }
         fixture_delays = {}
         for event in self.valid:
-            event_time = datetime.fromisoformat(event["event_time_utc"].replace("Z", "+00:00"))
-            received_at = datetime.fromisoformat(event["received_at_utc"].replace("Z", "+00:00"))
+            event_time = datetime.fromisoformat(
+                event["event_time_utc"].replace("Z", "+00:00")
+            )
+            received_at = datetime.fromisoformat(
+                event["received_at_utc"].replace("Z", "+00:00")
+            )
             delay = int((received_at - event_time).total_seconds() / 60)
             if delay > 30:
                 fixture_delays[event["event_id"]] = delay
@@ -115,7 +119,9 @@ class DatabaseIntegrationTests(unittest.TestCase):
                 connection.execute(migration.read_text(), prepare=False)
 
     def test_migration_backfills_existing_rows_and_sets_default(self):
-        self.apply_migrations("001_create_core_tables.sql", "002_rejected_event_details.sql")
+        self.apply_migrations(
+            "001_create_core_tables.sql", "002_rejected_event_details.sql"
+        )
         valid, _ = ingest_fixture.read_fixture()
         event = valid[0]
 
@@ -170,9 +176,15 @@ class DatabaseIntegrationTests(unittest.TestCase):
         after = datetime.now(timezone.utc)
 
         with psycopg.connect(self.database_url) as connection:
-            raw_count = connection.execute("SELECT count(*) FROM raw_event").fetchone()[0]
-            rejected_count = connection.execute("SELECT count(*) FROM rejected_event").fetchone()[0]
-            port_call_count = connection.execute("SELECT count(*) FROM port_call").fetchone()[0]
+            raw_count = connection.execute(
+                "SELECT count(*) FROM raw_event"
+            ).fetchone()[0]
+            rejected_count = connection.execute(
+                "SELECT count(*) FROM rejected_event"
+            ).fetchone()[0]
+            port_call_count = connection.execute(
+                "SELECT count(*) FROM port_call"
+            ).fetchone()[0]
             issues = dict(connection.execute(
                 "SELECT issue_code, count(*) FROM quality_issue GROUP BY issue_code"
             ).fetchall())

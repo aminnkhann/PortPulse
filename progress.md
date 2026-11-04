@@ -2,8 +2,8 @@
 
 - **Updated:** 2026-11-04
 - **Current stage:** Phase 1, Step 06 — replay checks and handover
-- **Phase 1 progress:** Steps 01–05 complete (5 of 6 milestones).
-- **Overall progress:** The Gantt's last estimate is 27.4%, weighted across all phases; it has not been recalculated for this implementation.
+- **Phase 1 MVP progress:** 83.3% (5 of 6 steps complete).
+- **Overall project progress:** 27.4% (last Gantt estimate, weighted across all phases; not recalculated for this implementation).
 
 The 10-working-day target applies to Phase 1. With the current assumed start date of 2 November 2026, that target ends on 13 November. The Gantt currently forecasts Phase 1 completion on 24 December, so the target needs a scope, capacity, or date adjustment. Stretch phases are optional and start after the MVP.
 

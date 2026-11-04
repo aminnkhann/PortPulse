@@ -1,0 +1,2 @@
+ALTER TABLE rejected_event
+    ADD COLUMN IF NOT EXISTS details JSONB NOT NULL DEFAULT '{}'::JSONB;

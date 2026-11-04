@@ -26,3 +26,14 @@ PortPulse is a small learning project. Prefer code a beginner can read and expla
 - Run only the checks needed for the change, and state what was and was not checked.
 - Comment only when the reason for a choice is not clear from the code.
 - Keep README, rules, schema, fixture, and expected output consistent when changing the event contract.
+
+## Synchronized GitHub repositories
+
+Keep these two repositories in sync:
+
+- Course repository: https://github.com/dci-fbw-dataeng-python-25-a/amin-final-project
+- Personal repository: https://github.com/aminnkhann/portpulse
+
+For every project change, however small, apply the same file changes to both repositories in the same work session. Push matching branches with the same branch name, commit message, PR title, and PR description. Open a PR in both repositories and coordinate their checks and merges; do not merge one side while the other side is unresolved. After merging, compare the `main` file trees.
+
+The repositories have separate Git histories, so their commit hashes and PR numbers will differ. If either repository is inaccessible or its PR cannot be made ready, stop before merging either side and report what remains.

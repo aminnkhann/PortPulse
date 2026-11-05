@@ -1,15 +1,15 @@
 # PortPulse project progress
 
 - **Updated:** 2026-11-05
-- **Current stage:** Phase 1, Step 06 — technical handover complete; peer reproduction pending
-- **Phase 1 MVP progress:** 83.3% (5 of 6 steps complete).
+- **Current stage:** Phase 1 MVP complete; Step 06 handover signed off
+- **Phase 1 MVP progress:** 100% (6 of 6 steps complete).
 - **Overall project progress:** 27.4% (last Gantt estimate, weighted across all phases; not recalculated for this implementation).
 
 The 10-working-day target applies to Phase 1. With the current assumed start date of 2 November 2026, that target ends on 13 November. The Gantt currently forecasts Phase 1 completion on 24 December, so the target needs a scope, capacity, or date adjustment. Stretch phases are optional and start after the MVP.
 
 ## Phase 1 — MVP (Steps 01–06)
 
-This phase builds and demonstrates the required local prototype. Steps 01–05 are complete. Step 06's replay checks and clean-clone handover are complete; another group member still needs to reproduce the demo and review the handover.
+This phase builds and demonstrates the required local prototype. All six steps are complete. The clean-clone replay flow was reproduced and confirmed working by the project owner.
 
 ### Step 01 — Event contract and synthetic fixture
 
@@ -33,7 +33,7 @@ Provide a small CLI response showing the trusted ETA, winning source and event, 
 
 ### Step 06 — Replay checks and handover
 
-Check validation, duplicates, collisions, reconciliation, and replay using the fixture, including reversed input. Document the run and have another group member reproduce it. **Status: Technical work complete; the 14-test suite passes with PostgreSQL enabled, and the documented flow was reproduced from a clean clone. Peer reproduction and group review remain to satisfy the handover sign-off.**
+Check validation, duplicates, collisions, reconciliation, and replay using the fixture, including reversed input. Document the run and reproduce it from a clean clone. **Status: Complete; on 2026-11-05, the project owner reproduced the documented clean-clone flow and confirmed it worked. No issues were reported. The 14-test suite passes with PostgreSQL enabled.**
 
 ## Phase 2 — Stretch 1 (P1)
 

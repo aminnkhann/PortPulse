@@ -35,20 +35,20 @@ The contract is a simplified synthetic ETA message, informed by the project prop
 - `raw_event.ingested_at_utc` is assigned by PostgreSQL. Migration 003 backfills existing rows with its application time because their original ingestion time was not stored.
 - Source priorities and freshness windows are seeded in `migrations/001_create_core_tables.sql` to match the rules file.
 
-## Proposed Phase 2 mapping — Digitraffic Port Call V2
+## Phase 2 mapping — Digitraffic Port Call V2
 
-This mapping is a plan for a separate adapter; it does not change the synthetic v1 contract above. The API returns active visit snapshots from [Port Call V2](https://meri.digitraffic.fi/swagger/#/Port%20Call%20V2).
+The adapter uses a separate v2 event contract and does not change the synthetic v1 contract above. The API returns active visit snapshots from [Port Call V2](https://meri.digitraffic.fi/swagger/#/Port%20Call%20V2).
 
 | PortPulse value | Digitraffic value | Handling |
 |---|---|---|
 | `port_call_id` | `visitId` | Stable identity for the visit. |
-| `event_id` | `visitId` + `updateTime` | Identifies one source revision; canonical payload hash distinguishes exact repeats from ID collisions. |
-| `source_id` | Constant `digitraffic` | Add it explicitly to the source configuration and validator. |
+| `event_id` | `visitId` + `updateTime` | Identifies one source revision; hash the normalized fields and retained source payload to distinguish exact repeats from ID collisions. |
+| `source_id` | Constant `digitraffic` | Validated by the v2 event model and configured in the source/rules table. |
 | `event_time_utc` | `updateTime` | Preserve its source meaning: when Digitraffic says the visit was updated. |
 | `eta_utc` | `eta` | Validate as UTC before reconciliation. |
 | `received_at_utc` | Time the adapter first receives this revision | Persist once; replays use the stored time and never refetch the API. |
 | Source metadata | `status`, `portOfCall`, `vesselId`, `mmsi`, `vesselName` | Retain the raw response and selected fields for audit/query output. |
 
-Repeated polling of an unchanged revision produces an exact duplicate. A changed `updateTime` is a new event in the same visit history. Different canonical content for the same derived `event_id` is an `ID_COLLISION`; exclude all variants of that ID from trusted state. If two sources disagree, record a conflict and choose only by the explicitly approved source priority, followed by the existing event-time and tie-break rules. No Digitraffic priority is assumed until the team records one in the source/rules configuration. The API's `updateTime` means visit update time; do not describe it as a precise ETA-message creation time.
+Only the latest `Expected to Arrive` visit status is eligible for ETA reconciliation. A later `Arrived`, `Departed`, or `Cancelled` update is retained as a valid event and makes the visit unavailable instead of leaving its previous ETA trusted. Repeated polling of an unchanged revision produces an exact duplicate even though its receipt time changes. A changed `updateTime` is a new event in the same visit history. Different normalized or source-payload content for the same derived `event_id` is an `ID_COLLISION`; exclude all variants of that ID from trusted state. Digitraffic call IDs are prefixed with `digitraffic:` and use source priority 1; therefore fresh Digitraffic events win within their separate calls. If records are later joined under one call ID, the highest configured source priority wins and conflicts remain recorded. The API's `updateTime` means visit update time; do not describe it as a precise ETA-message creation time.
 
-For reproducible checks, save a small API response as a fixture and test the mapping, repeated-poll duplicate, revised visit, collision, conflicting source, and winner selection against that fixed input. Send the recommended `Digitraffic-User` header, follow request limits, and credit Fintraffic / Digitraffic under CC BY 4.0 if publishing results.
+For reproducible checks, use fixed sample responses and test the mapping, repeated-poll duplicate, revised visit, collision, and winner selection without network access. Send the `Digitraffic-User` header and `Accept-Encoding: gzip`, follow request limits, and credit Fintraffic / Digitraffic under CC BY 4.0 if publishing results.

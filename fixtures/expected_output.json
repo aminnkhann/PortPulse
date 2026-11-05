@@ -1,5 +1,5 @@
 {
-  "rules_version": "1",
+  "rules_version": "2",
   "as_of_utc": "2026-01-15T11:00:00Z",
   "port_call_id": "PC-DEMO-001",
   "trusted_state": {

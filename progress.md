@@ -41,7 +41,7 @@ Begin these optional improvements after Phase 1 is accepted. Add only what time 
 
 ### Proposed Digitraffic Marine API input
 
-Use Port Call V2 active visits as an optional real-data input. The proposed contract mapping, duplicate/collision behavior, source-priority rule, replay approach, and API usage requirements are documented in [PRD.md](PRD.md), [ARCHITECTURE.md](ARCHITECTURE.md), and [docs/data_dictionary.md](docs/data_dictionary.md). **Status: Documented proposal only; implementation and group approval remain pending.**
+Fetch and normalize Port Call V2 active visits as an optional real-data input. Exact polls are recorded as duplicates, changed update times become new events, same-revision payload changes are collisions excluded from trusted state, and later arrival/departure/cancellation updates clear the ETA. Namespaced Digitraffic calls select Digitraffic when its event is eligible and fresh. The mapping and API usage requirements are in [PRD.md](PRD.md), [ARCHITECTURE.md](ARCHITECTURE.md), and [docs/data_dictionary.md](docs/data_dictionary.md). **Status: Adapter and tests implemented; the live response shape was checked read-only, but live database ingestion remains unrun.**
 
 ### Richer read-only API
 

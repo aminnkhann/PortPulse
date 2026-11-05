@@ -1,6 +1,6 @@
 {
   "additionalProperties": false,
-  "description": "Validated event fields; this model also generates the JSON Schema.",
+  "description": "Validated v1 event fields for the original synthetic fixture.",
   "properties": {
     "event_id": {
       "minLength": 1,
@@ -10,15 +10,6 @@
     "port_call_id": {
       "minLength": 1,
       "title": "Port Call Id",
-      "type": "string"
-    },
-    "source_id": {
-      "enum": [
-        "coordinator_sim",
-        "carrier_sim",
-        "terminal_sim"
-      ],
-      "title": "Source Id",
       "type": "string"
     },
     "event_time_utc": {
@@ -39,6 +30,15 @@
       "title": "Eta Utc",
       "type": "string"
     },
+    "source_id": {
+      "enum": [
+        "coordinator_sim",
+        "carrier_sim",
+        "terminal_sim"
+      ],
+      "title": "Source Id",
+      "type": "string"
+    },
     "schema_version": {
       "const": "v1",
       "title": "Schema Version",
@@ -48,10 +48,10 @@
   "required": [
     "event_id",
     "port_call_id",
-    "source_id",
     "event_time_utc",
     "received_at_utc",
     "eta_utc",
+    "source_id",
     "schema_version"
   ],
   "title": "PortPulse synthetic port-call ETA event v1",

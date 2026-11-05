@@ -8,13 +8,14 @@ from datetime import datetime
 from pathlib import Path
 
 import psycopg
-from jsonschema import Draft202012Validator, FormatChecker
+from pydantic import ValidationError
 from psycopg.types.json import Jsonb
+
+from scripts.event_model import PortCallEvent
 
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / "fixtures" / "port_call_v1.jsonl"
-SCHEMA = ROOT / "contracts" / "port_call_event_v1.schema.json"
 DEFAULT_DATABASE_URL = "postgresql://portpulse:portpulse_local_only@127.0.0.1:5432/portpulse"
 HASH_FIELDS = (
     "event_id",
@@ -43,28 +44,25 @@ def timestamp(payload, field):
         return None
 
 
-def validation_reason(error, schema):
-    field = str(error.absolute_path[-1]) if error.absolute_path else None
-    if error.validator == "required":
-        missing = sorted(set(error.validator_value) - set(error.instance))[0]
-        return "MISSING_REQUIRED_FIELD", missing
-    if error.validator == "const" and field == "schema_version":
+def validation_reason(error):
+    details = error.errors()[0]
+    field = str(details["loc"][0]) if details["loc"] else None
+    if details["type"] == "missing":
+        return "MISSING_REQUIRED_FIELD", field
+    if field == "schema_version" and details["type"] == "literal_error":
         return "INVALID_SCHEMA_VERSION", field
-    if error.validator == "enum" and field == "source_id":
+    if field == "source_id" and details["type"] == "literal_error":
         return "UNKNOWN_SOURCE", field
-    if error.validator in {"format", "pattern"} and field and field.endswith("_utc"):
+    if field and field.endswith("_utc"):
         return "INVALID_TIMESTAMP", field
-    if error.validator == "additionalProperties":
-        extra = sorted(set(error.instance) - set(schema["properties"]))[0]
-        return "UNKNOWN_FIELD", extra
-    if error.validator == "type":
+    if details["type"] == "extra_forbidden":
+        return "UNKNOWN_FIELD", str(details["loc"][-1])
+    if details["type"].endswith("_type"):
         return "INVALID_FIELD_TYPE", field
     return "INVALID_EVENT", field
 
 
 def read_fixture():
-    schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
-    validator = Draft202012Validator(schema, format_checker=FormatChecker())
     valid = []
     rejected = []
 
@@ -84,21 +82,17 @@ def read_fixture():
             })
             continue
 
-        errors = sorted(
-            validator.iter_errors(payload),
-            key=lambda error: (
-                tuple(map(str, error.absolute_path)), error.validator or ""
-            ),
-        )
-        if errors:
-            reason, field = validation_reason(errors[0], schema)
+        try:
+            PortCallEvent.model_validate(payload)
+        except ValidationError as error:
+            reason, field = validation_reason(error)
             rejected.append({
                 "event_id": text_field(payload, "event_id"),
                 "port_call_id": text_field(payload, "port_call_id"),
                 "received_at_utc": received_time(payload),
                 "reason_code": reason,
                 "raw_payload": payload,
-                "details": {"field": field, "message": errors[0].message},
+                "details": {"field": field, "message": error.errors()[0]["msg"]},
             })
             continue
 

@@ -37,6 +37,8 @@ A vessel's estimated arrival time (ETA) can be updated by several independent so
 
 **Quality bar:** Fixed inputs yield the same output; invalid events never change trusted state; rejected payloads retain a reason; automated tests cover the normal case, invalid input, duplicate, late event, conflict, staleness, and replay.
 
+**Technologies demonstrated:** Python and SQL/PostgreSQL implement the fixture-to-database ETL and trusted-state query. Pydantic validates incoming event fields, types, source IDs, schema version, and UTC timestamps; it is the single source of truth for validation. The published JSON Schema is generated from the Pydantic model for external schema consumers. GitHub Actions runs the lint and test checks as CI. See [the data dictionary](docs/data_dictionary.md) for the event contract details.
+
 **Current checks:** Install project dependencies with `python -m pip install -r requirements.txt`, then run `ruff check .` and `python -m unittest discover -s tests -v`. Ruff checks style and flags functions with cyclomatic complexity above 10. PostgreSQL integration tests use `PORTPULSE_TEST_DATABASE_URL`; the GitHub Actions workflow provides a disposable PostgreSQL 16 service and runs both checks on pushes and pull requests.
 
 **Current demo:** After loading the fixture, run `python -m scripts.reconcile` and inspect the saved state with `python -m scripts.query_state PC-DEMO-001`. See [docs/database.md](docs/database.md) for setup details.

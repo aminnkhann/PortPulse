@@ -1,6 +1,6 @@
 # Port-call event data dictionary — v1
 
-The contract is a simplified synthetic ETA message, informed by the project proposal. It does not claim DCSA conformance. The JSON Schema at `contracts/port_call_event_v1.schema.json` is authoritative for required fields and types.
+The contract is a simplified synthetic ETA message, informed by the project proposal. It does not claim DCSA conformance. `scripts/event_model.py` defines the event fields and validation rules with Pydantic; ingestion validates each JSONL record with this model. The checked-in JSON Schema is generated from that model with `python -m scripts.event_model` for tools that consume JSON Schema. Do not edit the schema by hand.
 
 | Field | Meaning | Contract rule |
 |---|---|---|

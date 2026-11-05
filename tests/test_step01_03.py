@@ -9,12 +9,13 @@ from pathlib import Path
 from unittest.mock import patch
 
 import psycopg
-from jsonschema import Draft202012Validator, FormatChecker
+from pydantic import ValidationError
 from psycopg import sql
 from psycopg.conninfo import make_conninfo
 from psycopg.types.json import Jsonb
 
 from scripts import ingest_fixture
+from scripts.event_model import PortCallEvent, build_json_schema
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -23,17 +24,21 @@ ROOT = Path(__file__).resolve().parents[1]
 class FixtureTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.schema = json.loads(
-            (ROOT / "contracts/port_call_event_v1.schema.json").read_text()
-        )
-        cls.validator = Draft202012Validator(cls.schema, format_checker=FormatChecker())
         cls.valid, cls.rejected = ingest_fixture.read_fixture()
 
-    def test_fixture_counts_and_schema_validation(self):
+    def test_fixture_counts_and_pydantic_validation(self):
         self.assertEqual((len(self.valid), len(self.rejected)), (30, 1))
-        self.assertTrue(all(self.validator.is_valid(event) for event in self.valid))
+        self.assertTrue(
+            all(PortCallEvent.model_validate(event) for event in self.valid)
+        )
         self.assertEqual(self.rejected[0]["reason_code"], "INVALID_SCHEMA_VERSION")
         self.assertEqual(len(self.valid) + len(self.rejected), 31)
+
+    def test_json_schema_is_generated_from_the_pydantic_model(self):
+        contract = json.loads(
+            (ROOT / "contracts/port_call_event_v1.schema.json").read_text()
+        )
+        self.assertEqual(contract, build_json_schema())
 
     def test_generated_fixture_matches_the_frozen_fixture(self):
         from scripts import generate_fixture
@@ -47,8 +52,9 @@ class FixtureTests(unittest.TestCase):
     def test_invalid_required_field_is_reported(self):
         event = self.valid[0].copy()
         del event["port_call_id"]
-        error = next(self.validator.iter_errors(event))
-        reason, field = ingest_fixture.validation_reason(error, self.schema)
+        with self.assertRaises(ValidationError) as raised:
+            PortCallEvent.model_validate(event)
+        reason, field = ingest_fixture.validation_reason(raised.exception)
         self.assertEqual((reason, field), ("MISSING_REQUIRED_FIELD", "port_call_id"))
 
     def test_canonical_hash_ignores_simulated_receipt_time(self):

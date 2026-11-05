@@ -1,9 +1,50 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://portpulse.example/schemas/port_call_event_v1.schema.json",
-  "title": "PortPulse synthetic port-call ETA event v1",
-  "type": "object",
   "additionalProperties": false,
+  "description": "Validated event fields; this model also generates the JSON Schema.",
+  "properties": {
+    "event_id": {
+      "minLength": 1,
+      "title": "Event Id",
+      "type": "string"
+    },
+    "port_call_id": {
+      "minLength": 1,
+      "title": "Port Call Id",
+      "type": "string"
+    },
+    "source_id": {
+      "enum": [
+        "coordinator_sim",
+        "carrier_sim",
+        "terminal_sim"
+      ],
+      "title": "Source Id",
+      "type": "string"
+    },
+    "event_time_utc": {
+      "format": "date-time",
+      "pattern": "Z$",
+      "title": "Event Time Utc",
+      "type": "string"
+    },
+    "received_at_utc": {
+      "format": "date-time",
+      "pattern": "Z$",
+      "title": "Received At Utc",
+      "type": "string"
+    },
+    "eta_utc": {
+      "format": "date-time",
+      "pattern": "Z$",
+      "title": "Eta Utc",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "v1",
+      "title": "Schema Version",
+      "type": "string"
+    }
+  },
   "required": [
     "event_id",
     "port_call_id",
@@ -13,23 +54,8 @@
     "eta_utc",
     "schema_version"
   ],
-  "properties": {
-    "event_id": {"type": "string", "minLength": 1},
-    "port_call_id": {"type": "string", "minLength": 1},
-    "source_id": {
-      "type": "string",
-      "enum": ["coordinator_sim", "carrier_sim", "terminal_sim"]
-    },
-    "event_time_utc": {"$ref": "#/$defs/utcTimestamp"},
-    "received_at_utc": {"$ref": "#/$defs/utcTimestamp"},
-    "eta_utc": {"$ref": "#/$defs/utcTimestamp"},
-    "schema_version": {"const": "v1"}
-  },
-  "$defs": {
-    "utcTimestamp": {
-      "type": "string",
-      "format": "date-time",
-      "pattern": "Z$"
-    }
-  }
+  "title": "PortPulse synthetic port-call ETA event v1",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://portpulse.example/schemas/port_call_event_v1.schema.json"
 }

@@ -21,7 +21,7 @@ Run PostgreSQL locally with Docker Compose and create the tables needed for sour
 
 ### Step 03 — Validation, deduplication, and loading
 
-Validate fixture records, store valid unique events, and record rejected, duplicate, and colliding events for investigation. Raw events also record PostgreSQL's actual `ingested_at_utc`, separate from simulated `received_at_utc`; migration 003 adds and backfills the field for existing databases. The loader was run twice; the counts stayed at 28 raw events, 1 rejected event, 2 exact-duplicate issues, 1 ID-collision issue, and 1 port call. **Status: Complete and repeatable.**
+Validate fixture records with the Pydantic event model, store valid unique events, and record rejected, duplicate, and colliding events for investigation. The model is the validation source of truth and generates the JSON Schema contract. Raw events also record PostgreSQL's actual `ingested_at_utc`, separate from simulated `received_at_utc`; migration 003 adds and backfills the field for existing databases. The loader was run twice; the counts stayed at 28 raw events, 1 rejected event, 2 exact-duplicate issues, 1 ID-collision issue, and 1 port call. **Status: Complete and repeatable.**
 
 ### Step 04 — Deterministic ETA reconciliation
 

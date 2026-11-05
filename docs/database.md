@@ -33,7 +33,7 @@ python -m pip install -r requirements.txt
 python scripts/ingest_fixture.py
 ```
 
-The loader checks the JSON Schema, stores one row per unique event ID and payload hash, records each exact duplicate attempt as a quality issue, stores collision variants, and quarantines invalid payloads. It can be rerun without adding the same events or issues again. If you changed the database password or port, set `DATABASE_URL` for the loader, for example `postgresql://portpulse:your_password@127.0.0.1:5433/portpulse`.
+The loader validates each record with the Pydantic model in `scripts/event_model.py`, stores one row per unique event ID and payload hash, records each exact duplicate attempt as a quality issue, stores collision variants, and quarantines invalid payloads with a reason. The JSON Schema contract is generated from this model; regenerate it after changing the model with `python -m scripts.event_model`. The loader can be rerun without adding the same events or issues again. If you changed the database password or port, set `DATABASE_URL` for the loader, for example `postgresql://portpulse:your_password@127.0.0.1:5433/portpulse`.
 
 Run the focused automated checks with `python -m unittest discover -s tests -v`. To run the PostgreSQL integration checks, also set `PORTPULSE_TEST_DATABASE_URL` to a disposable PostgreSQL database; the tests create and drop a uniquely named schema in it.
 

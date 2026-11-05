@@ -43,7 +43,7 @@
 | ID | Required behavior | Verification |
 |---|---|---|
 | PP-FR01 | Ingest JSONL ETA events with schema version, event_time, simulated received_at and separate actual ingested_at. | TC01: parse fixture; verify time fields and row count. |
-| PP-FR02 | Validate required fields, recognized source, UTC timestamps, valid ETA and schema version; reject with original payload plus reason. | TC02: invalid payload cannot change trusted ETA. |
+| PP-FR02 | Validate required fields, recognized source, UTC timestamps, valid ETA and schema version with the Pydantic event model; reject with original payload plus reason. | TC02: invalid payload cannot change trusted ETA. |
 | PP-FR03 | Treat same event_id + same canonical payload hash as an exact duplicate; count it without adding a second trusted event. Treat same event_id + different hash as **ID_COLLISION**; quarantine all variants of that ID and recompute affected state. | TC03: exact duplicate; TC04: collided ID in either arrival order. |
 | PP-FR04 | Preserve valid event history and select a trusted ETA using the written source/time rule table in §4. | TC05: expected source/event/ETA matches golden output. |
 | PP-FR05a | Mark an **out-of-order** event when its event_time precedes a newer event of the same source, port call and ETA field; preserve it without replacing that newer within-source value. | TC06: older event arrives later. |
@@ -103,7 +103,7 @@ All performance claims are **targets until measured**, not completed achievement
 
 ## 6. Implementation boundary / system outline
 
-**Minimum P0 stack:** Python 3.12, PostgreSQL, pytest, one CLI/SQL view and a simple Docker Compose setup for PostgreSQL. Rules belong in a small **pure reconciliation function** that can be unit-tested without a running database.
+**Minimum P0 stack:** Python 3.12, Pydantic for event validation and JSON Schema generation, PostgreSQL, pytest, one CLI/SQL view and a simple Docker Compose setup for PostgreSQL. Rules belong in a small **pure reconciliation function** that can be unit-tested without a running database.
 
 **Core tables:** `source_system`, `port_call`, `raw_event`, `rejected_event`, `quality_issue`, and `port_call_state`. The initial schema and source seed are in `migrations/001_create_core_tables.sql`; local PostgreSQL runs through `docker-compose.yml`. `raw_event` stores unique event ID/hash variants, allowing collisions to be retained; exact duplicate attempts are recorded as quality issues, and invalid payloads go to `rejected_event`.
 

@@ -58,16 +58,16 @@
     },
     {
       "code": "DELAYED_DELIVERY",
-      "event_id": "COORD-DELAYED-01",
-      "source_id": "coordinator_sim",
-      "delay_minutes": 40,
+      "event_id": "CARRIER-LATE-01",
+      "source_id": "carrier_sim",
+      "delay_minutes": 50,
       "threshold_minutes": 30
     },
     {
       "code": "DELAYED_DELIVERY",
-      "event_id": "CARRIER-LATE-01",
-      "source_id": "carrier_sim",
-      "delay_minutes": 50,
+      "event_id": "COORD-DELAYED-01",
+      "source_id": "coordinator_sim",
+      "delay_minutes": 40,
       "threshold_minutes": 30
     },
     {

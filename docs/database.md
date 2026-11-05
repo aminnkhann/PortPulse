@@ -24,7 +24,7 @@ Migration 003 adds `raw_event.ingested_at_utc`, which PostgreSQL assigns when it
 
 ## Ingest the fixture
 
-Install the two runtime dependencies and run the validator/loader:
+Install the project dependencies and run the validator/loader:
 
 ```sh
 python -m venv .venv
@@ -47,6 +47,17 @@ docker compose exec db psql -U portpulse -d portpulse -c 'SELECT issue_code, cou
 `docker compose down` stops the service and keeps its data volume. Do not use `docker compose down -v` unless you intentionally want to delete the local database.
 
 `raw_event` allows different payload hashes for the same `event_id`, so a collision's variants can be retained. Its composite uniqueness rule prevents storing an exact event payload twice; the duplicate attempt belongs in `quality_issue`. Reconciliation must exclude every `raw_event` row whose ID has an `ID_COLLISION` issue. Invalid payloads belong in `rejected_event` and do not enter trusted state.
+
+## Reconcile and inspect
+
+After loading the fixture, build the trusted state and inspect its history and recorded issues:
+
+```sh
+python -m scripts.reconcile
+python -m scripts.query_state PC-DEMO-001
+```
+
+Both commands use `DATABASE_URL` when set, or the local default connection. Reconciliation reads `rules/eta_rules_v1.yaml`, checks that its source priorities match the database, and can be rerun safely. The query shows the saved state, raw event history, quality issues, and rejected events.
 
 To check the generated ingestion timestamps:
 

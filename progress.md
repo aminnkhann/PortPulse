@@ -1,14 +1,15 @@
 # PortPulse project progress
 
-**Updated:** 2026-11-02  
-**Current stage:** Phase 1, Step 04 — deterministic ETA reconciliation  
-**Overall progress:** 27.4% in the Gantt estimate, weighted by workdays across all phases.
+- **Updated:** 2026-11-04
+- **Current stage:** Phase 1, Step 06 — replay checks and handover
+- **Phase 1 MVP progress:** 83.3% (5 of 6 steps complete).
+- **Overall project progress:** 27.4% (last Gantt estimate, weighted across all phases; not recalculated for this implementation).
 
 The 10-working-day target applies to Phase 1. With the current assumed start date of 2 November 2026, that target ends on 13 November. The Gantt currently forecasts Phase 1 completion on 24 December, so the target needs a scope, capacity, or date adjustment. Stretch phases are optional and start after the MVP.
 
 ## Phase 1 — MVP (Steps 01–06)
 
-This phase builds and demonstrates the required local prototype. Steps 01–03 are complete; Steps 04–06 remain.
+This phase builds and demonstrates the required local prototype. Steps 01–05 are complete; Step 06 remains.
 
 ### Step 01 — Event contract and synthetic fixture
 
@@ -24,15 +25,15 @@ Validate fixture records, store valid unique events, and record rejected, duplic
 
 ### Step 04 — Deterministic ETA reconciliation
 
-Use the documented rules to choose the trusted ETA, exclude collided IDs, assess stale sources, and record conflict or timing issues. Save the result and its event lineage so it can be compared with the expected output. **Status: Current step.**
+Use the documented rules to choose the trusted ETA, exclude collided IDs, assess stale sources, and record conflict or timing issues. Save the result and its event lineage so it can be compared with the expected output. **Status: Complete; result matches the golden fixture and reruns update the same state.**
 
 ### Step 05 — Queryable result
 
-Provide a small SQL view or CLI response showing the trusted ETA, winning source and event, history, rule version, evaluation time, and open issues. This makes the result and its reasoning easy to review. **Status: Planned.**
+Provide a small CLI response showing the trusted ETA, winning source and event, history, rule version, evaluation time, and recorded issues. This makes the result and its reasoning easy to review. **Status: Complete.**
 
 ### Step 06 — Replay checks and handover
 
-Check validation, duplicates, collisions, reconciliation, and replay using the fixture, including shuffled input. Document the run and have another group member reproduce it. This confirms the MVP is repeatable and ready to demonstrate. **Status: Planned.**
+Check validation, duplicates, collisions, reconciliation, and replay using the fixture, including shuffled input. Document the run and have another group member reproduce it. This confirms the MVP is repeatable and ready to demonstrate. **Status: Current step; shuffled-input and database replay checks are implemented, clean-clone handover remains.**
 
 ## Phase 2 — Stretch 1 (P1)
 
@@ -100,4 +101,4 @@ Explore OpenLineage or Marquez to show how a result can be traced through the pi
 
 ## Progress notes
 
-The Gantt's 27.4% is a planning estimate, not elapsed time. Its forecast currently places Phase 1 completion on 24 December 2026 and the full stretch plan on 12 January 2027. Phase 2 and Phase 3 have no committed dates. Group approval gates remain pending.
+The Gantt's 27.4% is the last full-plan planning estimate, not elapsed time or a recalculated code-completion score. Its forecast places Phase 1 completion on 24 December 2026 and the full stretch plan on 12 January 2027. Phase 2 and Phase 3 have no committed dates. Group approval gates remain pending.

@@ -2,7 +2,7 @@
 **Operational Event Integrity for Port-Call Data**  
 **Document:** PRD, user stories, and technical architecture · **Version:** 0.1
 
-**Scope note:** This is the original v0.1 proposal. The current MVP scope is in [PRD_v0.2.md](PRD_v0.2.md): use a generated local fixture and PostgreSQL first; Kafka and FastAPI are deferred.
+**Scope note:** This is the original v0.1 proposal. The current MVP scope is in [PRD.md](PRD.md): use a generated local fixture and PostgreSQL first; Kafka and FastAPI are deferred.
 
 **Delivery plan:** Phase 1 is the six-step MVP (P0) and has the 10-working-day target. Phase 2 is Stretch 1 (P1): richer API, broader synthetic scenarios/multiple port calls, integration checks and reporting. Phase 3 is Stretch 2 (P2): optional advanced streaming, cloud and platform experiments. Both stretch phases follow Phase 1 and have no committed dates. See [progress.md](progress.md) and the Gantt workbooks for the detailed sequence.
 
@@ -38,6 +38,8 @@ A vessel's estimated arrival time (ETA) can be updated by several independent so
 **Quality bar:** Fixed inputs yield the same output; invalid events never change trusted state; rejected payloads retain a reason; automated tests cover the normal case, invalid input, duplicate, late event, conflict, staleness, and replay.
 
 **Current checks:** Install project dependencies with `python -m pip install -r requirements.txt`, then run `ruff check .` and `python -m unittest discover -s tests -v`. Ruff checks style and flags functions with cyclomatic complexity above 10. PostgreSQL integration tests use `PORTPULSE_TEST_DATABASE_URL`; the GitHub Actions workflow provides a disposable PostgreSQL 16 service and runs both checks on pushes and pull requests.
+
+**Current demo:** After loading the fixture, run `python -m scripts.reconcile` and inspect the saved state with `python -m scripts.query_state PC-DEMO-001`. See [docs/database.md](docs/database.md) for setup details.
 
 **Out of scope:** Real vessel feeds, terminal equipment control, predictive ETA/ML, cloud deployment, Power BI, and claims of formal DCSA certification. Add-ons are discussed only after the MVP works.
 

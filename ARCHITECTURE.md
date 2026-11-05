@@ -1,6 +1,6 @@
 # Proposed system architecture — PortPulse — Operational Event Integrity & Terminal Readiness
 
-**Status:** Conceptual design for mentor feasibility review. The local PostgreSQL schema and fixture ingestion are implemented in Steps 01–03; deterministic reconciliation and query output remain Steps 04–05. The diagrams are Mermaid and render in compatible Markdown viewers such as GitHub.
+**Status:** Conceptual design for mentor feasibility review. The local PostgreSQL schema, fixture ingestion, deterministic reconciliation, and query CLI are implemented in Steps 01–05; replay handover remains Step 06. The diagrams are Mermaid and render in compatible Markdown viewers such as GitHub.
 
 **Source design:** [../source_readmes/PortPulse_original_README.md](../source_readmes/PortPulse_original_README.md). This version deliberately shows the smallest end-to-end slice that addresses the business problem rather than every optional tool named in the original README.
 

@@ -30,7 +30,7 @@ Install the project dependencies and run the validator/loader:
 python -m venv .venv
 source .venv/bin/activate
 python -m pip install -r requirements.txt
-python scripts/ingest_fixture.py
+python -m scripts.ingest_fixture
 ```
 
 The loader validates each record with the Pydantic model in `scripts/event_model.py`, stores one row per unique event ID and payload hash, records each exact duplicate attempt as a quality issue, stores collision variants, and quarantines invalid payloads with a reason. The JSON Schema contract is generated from this model; regenerate it after changing the model with `python -m scripts.event_model`. The loader can be rerun without adding the same events or issues again. If you changed the database password or port, set `DATABASE_URL` for the loader, for example `postgresql://portpulse:your_password@127.0.0.1:5433/portpulse`.
@@ -64,3 +64,26 @@ To check the generated ingestion timestamps:
 ```sh
 docker compose exec db psql -U portpulse -d portpulse -c 'SELECT event_id, received_at_utc, ingested_at_utc FROM raw_event ORDER BY ingested_at_utc LIMIT 5;'
 ```
+
+## Clean-clone handover
+
+From a fresh checkout, run the following commands from the project root. Docker starts a new local database volume for the clone; the fixture and rules are already included in the repository.
+
+```sh
+git clone https://github.com/aminnkhann/portpulse.git
+cd portpulse
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+docker compose up -d
+python -m scripts.ingest_fixture
+python -m scripts.ingest_fixture
+python -m scripts.reconcile
+python -m scripts.reconcile
+python -m scripts.query_state PC-DEMO-001
+python -m unittest discover -s tests -v
+```
+
+Both ingestion runs should report 28 unique valid payloads, 1 rejected occurrence, 2 exact duplicate attempts, and 1 ID-collision group. Both reconciliation runs should select `COORD-DELAYED-01` from `coordinator_sim` with ETA `2026-01-15T15:40:00Z`. The query should show 28 history rows, 1 rejected event, and issues for conflict, delayed delivery, exact duplicates, ID collision, out-of-order arrivals, and the stale source. The unit checks also compare the full deterministic result with `fixtures/expected_output.json` and reverse event order to confirm the same business result.
+
+The test command skips PostgreSQL integration checks unless `PORTPULSE_TEST_DATABASE_URL` points to a disposable database. Keep the local Compose database for the demo; the checks create and remove their own temporary schema.

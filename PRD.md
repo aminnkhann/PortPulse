@@ -9,7 +9,7 @@
 **Governing rules:** [DCI Final Project Guide](https://docs.google.com/document/d/1vshf7tqzz77ag48DjK56IStJMHLUfaZHHQ2ww0OTd14/edit), especially §§1–3, 7–8 and 10–12.  
 **Accountability:** One integrated team project; named contributors and work owners to be confirmed at G0.  
 **Schedule target:** 10 working days for Phase 1 from the Gantt's assumed 2 November 2026 start (target date: 13 November 2026). This is a user-set planning target, not yet approved by the group. The current WBS forecasts Phase 1/P0 completion on 24 December 2026 and the full Phase 1–3 plan on 12 January 2027; the target is therefore not supported by current effort estimates. Confirm feasible scope and team capacity at G0 before treating this as a committed date.  
-**Three-phase delivery:** Phase 1 is the required MVP and comprises Steps 01–06 (P0); the 10-working-day target applies to this phase. Phase 2 is Stretch 1 (P1): richer API, broader synthetic scenarios/multiple calls, database integration checks, and dashboard/reporting. Phase 3 is Stretch 2 (P2): advanced streaming, cloud, orchestration, lineage and conformance work. Phases 2 and 3 begin only after Phase 1 and are optional, with dates to be estimated separately.  
+**Three-phase delivery:** Phase 1 is the required MVP and comprises Steps 01–06 (P0); the 10-working-day target applies to this phase. Phase 2 is Stretch 1 (P1): a Digitraffic marine API input adapter, broader synthetic scenarios/multiple calls, database integration checks, and dashboard/reporting. Phase 3 is Stretch 2 (P2): advanced streaming, cloud, orchestration, lineage and conformance work. Phases 2 and 3 begin only after Phase 1 and are optional, with dates to be estimated separately.
 
 ## 1. Problem, user and value
 
@@ -109,7 +109,17 @@ All performance claims are **targets until measured**, not completed achievement
 
 **Pipeline:** Fixture JSONL → Python parser/validator → PostgreSQL raw/rejected records → deterministic state builder → state + issues → CLI/SQL readout. Raw ingestion time can be recorded for diagnostics but must not influence a replay's business outcome.
 
-**Stretch phases (not required to pass Phase 1):** Phase 2/P1 adds a richer API, broader synthetic scenarios and database integration checks, with reporting/dashboard work. Phase 3/P2 may add Kafka, MinIO, Airflow, dbt, cloud services, streaming, lineage, terminal-equipment simulation, and DCSA conformance research. Keep both stretch phases optional and estimate them only after the MVP is complete.
+**Stretch phases (not required to pass Phase 1):** Phase 2/P1 may add the proposed Digitraffic Marine API input adapter, a richer read-only API, broader synthetic scenarios, database integration checks, and reporting/dashboard work. Phase 3/P2 may add Kafka, MinIO, Airflow, dbt, cloud services, streaming, lineage, terminal-equipment simulation, and DCSA conformance research. Keep both stretch phases optional and estimate them only after the MVP is complete.
+
+### Proposed Phase 2 input: Digitraffic Marine API
+
+This is a proposed P1 extension and does not change the P0 synthetic fixture or v1 event contract. Fetch active visits from the [Digitraffic Port Call V2 API](https://meri.digitraffic.fi/swagger/#/Port%20Call%20V2), validate and normalize each response, then pass accepted ETA updates through the existing deduplication and reconciliation rules. Keep the raw response and a small captured JSON fixture so tests and replay do not depend on a live API response.
+
+Map `visitId` to the PortPulse port-call identity, `eta` to `eta_utc`, `updateTime` to the source update timestamp, and use the visit status and port/vessel identifiers as retained source metadata. Use a stable event identity derived from `visitId` and `updateTime`: the same identity and canonical payload is an exact duplicate; the same identity with different content is an ID collision; a changed `updateTime` is a new visit update. Preserve these distinctions in history and quality issues.
+
+Add `digitraffic` as an explicit source with a reviewed priority and freshness setting. When sources disagree, retain a CONFLICT issue and select the trusted value using the configured source priority, then the existing within-source event-time and tie-break rules. Do not assume Digitraffic is authoritative just because it is an API. If priorities are not approved, report the conflict without presenting a winner as authoritative. Record the first receipt time and database ingestion time separately; replay saved records without refetching or changing business timestamps.
+
+The adapter must send a `Digitraffic-User` header, respect the API's request limits and update intervals, and provide the required source attribution under [Digitraffic's CC BY 4.0 terms](https://www.digitraffic.fi/en/terms-of-service/). This remains Finnish marine traffic data; it is a real-data demonstration, not a claim of broad port coverage or operational authority.
 
 **External standards boundary:** [DCSA Port Call standards](https://dcsa.org/standards/port-call), with Port Call 2.0 as a **conceptual reference** for message vocabulary. The P0 JSON is deliberately simplified, synthetic and **not claimed DCSA-conformant**. Exact conformance/mapping is deferred.
 

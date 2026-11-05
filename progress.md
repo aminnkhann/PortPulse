@@ -39,6 +39,10 @@ Check validation, duplicates, collisions, reconciliation, and replay using the f
 
 Begin these optional improvements after Phase 1 is accepted. Add only what time and team capacity allow.
 
+### Proposed Digitraffic Marine API input
+
+Use Port Call V2 active visits as an optional real-data input. The proposed contract mapping, duplicate/collision behavior, source-priority rule, replay approach, and API usage requirements are documented in [PRD.md](PRD.md), [ARCHITECTURE.md](ARCHITECTURE.md), and [docs/data_dictionary.md](docs/data_dictionary.md). **Status: Documented proposal only; implementation and group approval remain pending.**
+
 ### Richer read-only API
 
 Add a small FastAPI interface for querying the current ETA, event history, and quality issues. Reuse the Phase 1 query logic.

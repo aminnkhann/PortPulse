@@ -1,13 +1,13 @@
 # Proposed system architecture — PortPulse — Operational Event Integrity & Terminal Readiness
 
-**Status:** Conceptual design for mentor feasibility review. The local PostgreSQL schema, fixture ingestion, deterministic reconciliation, and query CLI are implemented in Steps 01–05; replay handover remains Step 06. The diagrams are Mermaid and render in compatible Markdown viewers such as GitHub.
+**Status:** Conceptual design for mentor feasibility review. The local PostgreSQL schema, fixture ingestion, deterministic reconciliation, query CLI, replay checks, and clean-clone handover are complete for Phase 1. The diagrams are Mermaid and render in compatible Markdown viewers such as GitHub.
 
 **Source design:** [../source_readmes/PortPulse_original_README.md](../source_readmes/PortPulse_original_README.md). This version deliberately shows the smallest end-to-end slice that addresses the business problem rather than every optional tool named in the original README.
 
 ## Delivery phases
 
 - **Phase 1 — MVP (Steps 01–06, P0):** local synthetic fixture, PostgreSQL, validation, reconciliation, query output and replay handover.
-- **Phase 2 — Stretch 1 (P1):** richer read-only API, more synthetic scenarios and port calls, database integration checks, and operational reporting/dashboard.
+- **Phase 2 — Stretch 1 (P1):** optional Digitraffic Marine API input adapter, richer read-only API, more synthetic scenarios and port calls, database integration checks, and operational reporting/dashboard.
 - **Phase 3 — Stretch 2 (P2):** optional Kafka/cloud, orchestration, streaming, lineage and standards-conformance experiments. Start only after Phase 1; Phase 2 is the preferred first stretch.
 
 ## 1. System context and data flow
@@ -15,6 +15,8 @@
 ```mermaid
 flowchart LR
     S[Generated JSONL fixture] --> V[Python validator + deduplicator]
+    D[Digitraffic Port Call V2] --> A[API fetch + normalizer]
+    A --> V
     V -->|invalid| X[(Rejected events)]
     V -->|valid unique payload| H[(PostgreSQL raw event history)]
     V -->|duplicate or collision| Q[(Quality issues)]
@@ -29,6 +31,12 @@ flowchart LR
 
 
 **System boundary:** All data shown are generated or licensed for the capstone. External proprietary system integration is out of scope. Software and storage choices are proposals pending group feasibility review.
+
+### Proposed Phase 2 external input
+
+The Digitraffic adapter is an optional P1 input, separate from the frozen synthetic fixture. It fetches active visits from Port Call V2, retains the raw response, maps `visitId`, `updateTime`, `eta`, status, port and vessel identifiers, then sends normalized updates through the same validation, deduplication, collision handling and reconciliation path. A saved response fixture is the test/replay input; tests must not depend on live data.
+
+For the same visit and source update timestamp, identical canonical payloads are duplicates; different payloads are ID collisions and are excluded from trusted state. A later `updateTime` creates a new event in the same visit history. Across sources, record conflicts and select a winner only under an explicitly approved source-priority table; event-time and tie-break rules remain the existing reconciliation rules. Digitraffic does not receive special authority by default. The adapter records receipt and database-ingestion timestamps separately, identifies itself with `Digitraffic-User`, respects request/update limits, and attributes the data under CC BY 4.0. See the [PRD's proposed Phase 2 mapping and rules](PRD.md#proposed-phase-2-input-digitraffic-marine-api).
 
 ## 2. Entity relationship diagram (conceptual ERD)
 

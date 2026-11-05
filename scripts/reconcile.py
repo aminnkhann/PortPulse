@@ -117,9 +117,22 @@ def build_source_states(events, sources, as_of):
     for source_id, source in sorted(sources.items()):
         source_events = by_source[source_id]
         if not source_events:
-            states.append({"source_id": source_id, "status": "UNAVAILABLE"})
             continue
         event = latest_event(source_events)
+        source_payload = event.get("source_payload")
+        visit_status = (
+            source_payload.get("status")
+            if isinstance(source_payload, dict)
+            else "Expected to Arrive"
+        )
+        if visit_status != "Expected to Arrive":
+            states.append({
+                "source_id": source_id,
+                "status": "INELIGIBLE",
+                "event_id": event["event_id"],
+                "visit_status": visit_status,
+            })
+            continue
         received_at = parse_utc(event["received_at_utc"])
         age_minutes = int((as_of - received_at).total_seconds() // 60)
         status = "STALE" if age_minutes > source["freshness_minutes"] else "ACTIVE"
@@ -310,7 +323,11 @@ def reconcile_port_call(events, rejected, sources, rules, port_call_id):
         }
     else:
         trusted_state = {
-            "status": "UNAVAILABLE_STALE",
+            "status": (
+                "UNAVAILABLE"
+                if any(state["status"] == "INELIGIBLE" for state in source_states)
+                else "UNAVAILABLE_STALE"
+            ),
             "eta_utc": None,
             "source_id": None,
             "event_id": None,
@@ -426,8 +443,10 @@ def save_result(cursor, result, events):
         )
 
 
-def reconcile_database(database_url, rules_path=RULES_FILE):
+def reconcile_database(database_url, rules_path=RULES_FILE, as_of_utc=None):
     rules = load_rules(rules_path)
+    if as_of_utc is not None:
+        rules["as_of"] = parse_utc(as_of_utc)
     with psycopg.connect(database_url) as connection:
         with connection.cursor() as cursor:
             events, rejected, sources = database_inputs(cursor)
@@ -452,8 +471,12 @@ def main():
         "--database-url",
         default=os.environ.get("DATABASE_URL", ingest_fixture.DEFAULT_DATABASE_URL),
     )
+    parser.add_argument(
+        "--as-of",
+        help="Optional ISO-8601 UTC evaluation time; defaults to the rules file",
+    )
     args = parser.parse_args()
-    results = reconcile_database(args.database_url)
+    results = reconcile_database(args.database_url, as_of_utc=args.as_of)
     print(json.dumps(results, indent=2))
 
 

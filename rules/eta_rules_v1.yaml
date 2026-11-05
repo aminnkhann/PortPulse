@@ -1,6 +1,6 @@
 # Versioned simulation rules based on PRD_v0.2 §4.
 # These are project assumptions, not port-industry policy; group sign-off is pending.
-rules_version: "1"
+rules_version: "2"
 as_of_utc: "2026-01-15T11:00:00Z"
 
 sources:
@@ -8,10 +8,14 @@ sources:
   coordinator_sim: {priority: 3, freshness_minutes: 120}
   carrier_sim: {priority: 2, freshness_minutes: 120}
   terminal_sim: {priority: 1, freshness_minutes: 120}
+  # Digitraffic visits use namespaced port_call_id values and do not compete
+  # with the synthetic sources; priority 1 is a fallback if records are joined.
+  digitraffic: {priority: 1, freshness_minutes: 120}
 
 event_identity:
   key: event_id
   canonical_hash_fields: [event_id, port_call_id, source_id, event_time_utc, eta_utc, schema_version]
+  v2_canonical_hash_additional_field: source_payload
   exact_duplicate: "same event_id and same canonical payload hash; received_at_utc is transport metadata"
   id_collision: "same event_id with different canonical payload hashes"
   collision_action: "exclude every variant of that event_id from trusted-state calculation"

@@ -103,6 +103,8 @@ def read_fixture():
 
 def canonical_hash(event):
     fields = {name: event[name] for name in HASH_FIELDS}
+    if "source_payload" in event:
+        fields["source_payload"] = event["source_payload"]
     value = json.dumps(
         fields, sort_keys=True, separators=(",", ":"), ensure_ascii=False
     )
@@ -181,16 +183,55 @@ def insert_issue(cursor, issue_code, event_id, received_at, raw_payload, details
     )
 
 
-def store_fixture(valid, rejected):
+def store_fixture(
+    valid, rejected, record_existing_duplicates=False, database_url=None
+):
     unique_events, duplicate_attempts, collisions = group_events(valid)
-    database_url = os.environ.get("DATABASE_URL", DEFAULT_DATABASE_URL)
+    database_url = database_url or os.environ.get(
+        "DATABASE_URL", DEFAULT_DATABASE_URL
+    )
+    existing_duplicate_count = 0
 
     with psycopg.connect(database_url) as connection:
         with connection.cursor() as cursor:
+            existing_hashes = defaultdict(set)
+            if record_existing_duplicates:
+                event_ids = sorted({event["event_id"] for event, _ in unique_events})
+                if event_ids:
+                    cursor.execute(
+                        "SELECT event_id, canonical_payload_sha256 FROM raw_event "
+                        "WHERE event_id = ANY(%s)",
+                        (event_ids,),
+                    )
+                    for event_id, payload_hash in cursor.fetchall():
+                        existing_hashes[event_id].add(payload_hash)
+
             for item in rejected:
                 insert_rejection(cursor, item)
 
             for event, _ in unique_events:
+                payload_hash = canonical_hash(event)
+                prior_hashes = existing_hashes[event["event_id"]]
+                if record_existing_duplicates and payload_hash in prior_hashes:
+                    existing_duplicate_count += 1
+                    insert_issue(
+                        cursor,
+                        "EXACT_DUPLICATE",
+                        event["event_id"],
+                        received_time(event),
+                        event,
+                        {
+                            "canonical_payload_sha256": payload_hash,
+                            "duplicate_number": 1,
+                            "port_call_id": event["port_call_id"],
+                        },
+                    )
+                elif record_existing_duplicates and prior_hashes:
+                    collisions[event["event_id"]] = sorted(
+                        prior_hashes | {payload_hash}
+                    )
+                prior_hashes.add(payload_hash)
+
                 cursor.execute(
                     "INSERT INTO port_call (port_call_id) VALUES (%s) "
                     "ON CONFLICT DO NOTHING",
@@ -209,7 +250,7 @@ def store_fixture(valid, rejected):
                         event["event_id"], event["port_call_id"], event["source_id"],
                         timestamp(event, "event_time_utc"), received_time(event),
                         datetime.fromisoformat(event["eta_utc"].replace("Z", "+00:00")),
-                        event["schema_version"], canonical_hash(event), Jsonb(event),
+                        event["schema_version"], payload_hash, Jsonb(event),
                     ),
                 )
 
@@ -246,7 +287,11 @@ def store_fixture(valid, rejected):
                     },
                 )
 
-    return len(unique_events), len(duplicate_attempts), len(collisions)
+    return (
+        len(unique_events),
+        len(duplicate_attempts) + existing_duplicate_count,
+        len(collisions),
+    )
 
 
 def main():

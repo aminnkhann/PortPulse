@@ -18,6 +18,8 @@ Migrations are automatically applied in filename order when Docker initializes a
 ```sh
 docker compose exec -T db psql -U portpulse -d portpulse < migrations/002_rejected_event_details.sql
 docker compose exec -T db psql -U portpulse -d portpulse < migrations/003_raw_event_ingested_at.sql
+docker compose exec -T db psql -U portpulse -d portpulse < migrations/004_add_digitraffic_source.sql
+docker compose exec -T db psql -U portpulse -d portpulse < migrations/005_allow_unavailable_state.sql
 ```
 
 Migration 003 adds `raw_event.ingested_at_utc`, which PostgreSQL assigns when it stores an event. This is distinct from the fixture's simulated `received_at_utc`. Existing rows receive the migration's application time because their original ingestion time cannot be recovered.
@@ -33,9 +35,19 @@ python -m pip install -r requirements.txt
 python -m scripts.ingest_fixture
 ```
 
-The loader validates each record with the Pydantic model in `scripts/event_model.py`, stores one row per unique event ID and payload hash, records each exact duplicate attempt as a quality issue, stores collision variants, and quarantines invalid payloads with a reason. The JSON Schema contract is generated from this model; regenerate it after changing the model with `python -m scripts.event_model`. The loader can be rerun without adding the same events or issues again. If you changed the database password or port, set `DATABASE_URL` for the loader, for example `postgresql://portpulse:your_password@127.0.0.1:5433/portpulse`.
+The loader validates each record with the Pydantic model in `scripts/event_model.py`, stores one row per unique event ID and payload hash, records each exact duplicate attempt as a quality issue, stores collision variants, and quarantines invalid payloads with a reason. The v1 and Digitraffic v2 JSON Schema contracts are generated from their Pydantic models; regenerate them after changing the models with `python -m scripts.event_model`. The fixture loader can be rerun without adding the same events or issues again. If you changed the database password or port, set `DATABASE_URL` for the loader, for example `postgresql://portpulse:your_password@127.0.0.1:5433/portpulse`.
 
 Run the focused automated checks with `python -m unittest discover -s tests -v`. To run the PostgreSQL integration checks, also set `PORTPULSE_TEST_DATABASE_URL` to a disposable PostgreSQL database; the tests create and drop a uniquely named schema in it.
+
+## Fetch Digitraffic visits
+
+Apply migrations 004 and 005 to an existing database, then run the optional Port Call V2 adapter. It sends the `Digitraffic-User` and required `Accept-Encoding: gzip` headers, validates each visit, retains the source JSON, records repeat polls and collisions, and reconciles each namespaced visit using the current UTC fetch time:
+
+```sh
+python check_api.py --port FIHEL
+```
+
+You can filter by vessel IMO instead with `--imo 1234567`, or omit both filters to fetch all active visits. This step contacts the live API and writes accepted visits and rejected records to PostgreSQL. Repeated polling of an unchanged visit creates an `EXACT_DUPLICATE` quality issue without another `raw_event` row. A changed `updateTime` adds history; different content for the same `visitId` and `updateTime` creates an `ID_COLLISION` and excludes both versions from trusted state. A later arrived, departed, or cancelled update makes the visit unavailable instead of leaving its earlier ETA trusted. Digitraffic visits use `digitraffic:` call IDs, so their winner is the newest valid, fresh `Expected to Arrive` revision within that separate dataset. The synthetic demo remains unchanged.
 
 For the current fixture, the first run should leave 28 rows in `raw_event`, 1 in `rejected_event`, 1 in `port_call`, and quality issue counts of 2 `EXACT_DUPLICATE` plus 1 `ID_COLLISION`. Check with:
 

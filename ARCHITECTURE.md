@@ -32,11 +32,11 @@ flowchart LR
 
 **System boundary:** All data shown are generated or licensed for the capstone. External proprietary system integration is out of scope. Software and storage choices are proposals pending group feasibility review.
 
-### Proposed Phase 2 external input
+### Phase 2 external input adapter
 
-The Digitraffic adapter is an optional P1 input, separate from the frozen synthetic fixture. It fetches active visits from Port Call V2, retains the raw response, maps `visitId`, `updateTime`, `eta`, status, port and vessel identifiers, then sends normalized updates through the same validation, deduplication, collision handling and reconciliation path. A saved response fixture is the test/replay input; tests must not depend on live data.
+The Digitraffic adapter is an optional P1 input, separate from the frozen synthetic fixture. It fetches active visits from Port Call V2, retains the raw response, maps `visitId`, `updateTime`, `eta`, status, port and vessel identifiers, then sends normalized updates through the same validation, deduplication, collision handling and reconciliation path. A latest status other than `Expected to Arrive` makes the visit ineligible for a trusted ETA, so an old ETA is not left trusted after arrival or cancellation. Tests use fixed response samples and do not depend on live data.
 
-For the same visit and source update timestamp, identical canonical payloads are duplicates; different payloads are ID collisions and are excluded from trusted state. A later `updateTime` creates a new event in the same visit history. Across sources, record conflicts and select a winner only under an explicitly approved source-priority table; event-time and tie-break rules remain the existing reconciliation rules. Digitraffic does not receive special authority by default. The adapter records receipt and database-ingestion timestamps separately, identifies itself with `Digitraffic-User`, respects request/update limits, and attributes the data under CC BY 4.0. See the [PRD's proposed Phase 2 mapping and rules](PRD.md#proposed-phase-2-input-digitraffic-marine-api).
+For the same visit and source update timestamp, identical canonical payloads are duplicates; different payloads are ID collisions and are excluded from trusted state. A later `updateTime` creates a new event in the same visit history. Digitraffic call IDs are namespaced, so Digitraffic is the only source for those calls and wins when its event is valid and fresh. If calls are later joined across sources, record conflicts and select a winner using the configured source priority, event time and tie-break rules. The adapter records receipt and database-ingestion timestamps separately, sends `Digitraffic-User` and `Accept-Encoding: gzip`, respects request/update limits, and attributes the data under CC BY 4.0. See the [PRD's Phase 2 mapping and rules](PRD.md#phase-2-input-digitraffic-marine-api).
 
 ## 2. Entity relationship diagram (conceptual ERD)
 

@@ -13,12 +13,22 @@ import psycopg
 from psycopg import sql
 from psycopg.conninfo import make_conninfo
 
-from scripts import ingest_fixture
+from scripts import ingest_digitraffic, ingest_fixture
 from scripts.query_state import query_port_call
 from scripts.reconcile import load_rules, reconcile_database, reconcile_port_call
 
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def tests_visit():
+    return {
+        "visitId": "visit-123",
+        "updateTime": "2026-01-15T10:50:00Z",
+        "eta": "2026-01-15T14:00:00Z",
+        "portOfCall": "FIHEL",
+        "status": "Expected to Arrive",
+    }
 
 
 class ReconciliationTests(unittest.TestCase):
@@ -65,6 +75,53 @@ class ReconciliationTests(unittest.TestCase):
         result = self.reconcile(self.valid + [future])
         self.assertEqual(result["trusted_state"]["event_id"], "COORD-DELAYED-01")
         self.assertEqual(result["counts"]["events_after_as_of_utc"], 1)
+
+    def test_digitraffic_visit_wins_in_its_separate_dataset(self):
+        events, rejected = ingest_digitraffic.normalize_visits(
+            [tests_visit()], "2026-01-15T10:55:00Z"
+        )
+        result = reconcile_port_call(
+            events, rejected, self.rules["sources"], self.rules,
+            "digitraffic:visit-123",
+        )
+        self.assertEqual(result["trusted_state"]["source_id"], "digitraffic")
+        self.assertEqual(
+            result["trusted_state"]["event_id"],
+            "digitraffic:visit-123:2026-01-15T10:50:00Z",
+        )
+
+    def test_digitraffic_collision_excludes_both_revision_variants(self):
+        visit = tests_visit()
+        changed = {**visit, "eta": "2026-01-15T15:00:00Z"}
+        events, rejected = ingest_digitraffic.normalize_visits(
+            [visit, changed], "2026-01-15T10:55:00Z"
+        )
+        result = reconcile_port_call(
+            events, rejected, self.rules["sources"], self.rules,
+            "digitraffic:visit-123",
+        )
+        self.assertIsNone(result["trusted_state"]["event_id"])
+        self.assertEqual(
+            [issue["code"] for issue in result["issues"]], ["ID_COLLISION"]
+        )
+
+    def test_arrival_status_prevents_previous_eta_from_remaining_trusted(self):
+        visit = tests_visit()
+        arrived = {
+            **visit,
+            "updateTime": "2026-01-15T10:59:00Z",
+            "status": "Arrived",
+        }
+        events, rejected = ingest_digitraffic.normalize_visits(
+            [visit, arrived], "2026-01-15T10:59:30Z"
+        )
+        result = reconcile_port_call(
+            events, rejected, self.rules["sources"], self.rules,
+            "digitraffic:visit-123",
+        )
+        self.assertEqual(result["trusted_state"]["status"], "UNAVAILABLE")
+        self.assertIsNone(result["trusted_state"]["event_id"])
+        self.assertEqual(result["source_states"][0]["status"], "INELIGIBLE")
 
 
 class ReconciliationDatabaseTests(unittest.TestCase):
@@ -124,6 +181,63 @@ class ReconciliationDatabaseTests(unittest.TestCase):
             "OUT_OF_ORDER": 2,
             "STALE_SOURCE": 1,
         })
+
+    def test_digitraffic_collision_from_later_poll_has_no_winner(self):
+        visit = tests_visit()
+        first, _ = ingest_digitraffic.normalize_visits(
+            [visit], "2026-01-15T10:55:00Z"
+        )
+        changed = {**visit, "eta": "2026-01-15T15:00:00Z"}
+        second, _ = ingest_digitraffic.normalize_visits(
+            [changed], "2026-01-15T10:56:00Z"
+        )
+        ingest_fixture.store_fixture(
+            first, [], record_existing_duplicates=True,
+            database_url=self.database_url,
+        )
+        ingest_fixture.store_fixture(
+            second, [], record_existing_duplicates=True,
+            database_url=self.database_url,
+        )
+
+        result = next(
+            item for item in reconcile_database(
+                self.database_url, as_of_utc="2026-01-15T11:00:00Z"
+            )
+            if item["port_call_id"] == "digitraffic:visit-123"
+        )
+        self.assertIsNone(result["trusted_state"]["event_id"])
+        self.assertIn("ID_COLLISION", [issue["code"] for issue in result["issues"]])
+
+    def test_arrived_visit_replaces_previous_trusted_eta_in_database(self):
+        visit = tests_visit()
+        expected, _ = ingest_digitraffic.normalize_visits(
+            [visit], "2026-01-15T10:50:00Z"
+        )
+        arrived = {
+            **visit,
+            "updateTime": "2026-01-15T10:59:00Z",
+            "status": "Arrived",
+        }
+        arrival_event, _ = ingest_digitraffic.normalize_visits(
+            [arrived], "2026-01-15T10:59:30Z"
+        )
+        ingest_fixture.store_fixture(
+            expected + arrival_event, [], database_url=self.database_url
+        )
+        result = next(
+            item for item in reconcile_database(
+                self.database_url, as_of_utc="2026-01-15T11:00:00Z"
+            )
+            if item["port_call_id"] == "digitraffic:visit-123"
+        )
+        with psycopg.connect(self.database_url) as connection:
+            saved_status = connection.execute(
+                "SELECT status FROM port_call_state "
+                "WHERE port_call_id = 'digitraffic:visit-123'"
+            ).fetchone()[0]
+        self.assertEqual(result["trusted_state"]["status"], "UNAVAILABLE")
+        self.assertEqual(saved_status, "UNAVAILABLE")
 
 
 if __name__ == "__main__":

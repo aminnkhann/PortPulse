@@ -23,7 +23,8 @@ def query_port_call(database_url, port_call_id):
 
         history = connection.execute(
             """SELECT event_id, source_id, event_time_utc, received_at_utc,
-                      ingested_at_utc, eta_utc, schema_version
+                      ingested_at_utc, eta_utc, schema_version,
+                      raw_payload -> 'source_payload' AS source_payload
                FROM raw_event WHERE port_call_id = %s
                ORDER BY event_time_utc, event_id, raw_event_id""",
             (port_call_id,),

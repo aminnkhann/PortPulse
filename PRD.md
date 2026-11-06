@@ -121,6 +121,8 @@ The v2 adapter maps `visitId` to a namespaced PortPulse call identity, `eta` to 
 
 The adapter sends `Digitraffic-User` and `Accept-Encoding: gzip` headers and respects the API's request limits and update intervals. Any published data must include attribution under [Digitraffic's CC BY 4.0 terms](https://www.digitraffic.fi/en/terms-of-service/). This is Finnish marine traffic data, not broad port coverage or operational authority.
 
+The marine comparison adapter may compare Portnet's agent/port/pilot ETA reports with vessel-reported AIS ETA when the vessel MMSI, destination port, and ETA date establish one unambiguous shared call. Calls with recorded actual arrival or departure times are ineligible. AIS ETA omits the year, so it uses the matching Portnet ETA's year. This is a source-comparison demonstration; the configured Portnet-over-AIS ranking is a project assumption, not an operational authority rule.
+
 **External standards boundary:** [DCSA Port Call standards](https://dcsa.org/standards/port-call), with Port Call 2.0 as a **conceptual reference** for message vocabulary. The P0 JSON is deliberately simplified, synthetic and **not claimed DCSA-conformant**. Exact conformance/mapping is deferred.
 
 **Non-goals:** No real terminal or vehicle control; no live TOS/ECS integration; no company-private APIs; no safety-critical operational decisions; no claim of production availability, throughput, or financial impact.

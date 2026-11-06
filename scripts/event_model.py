@@ -11,6 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_vali
 ROOT = Path(__file__).resolve().parents[1]
 SCHEMA = ROOT / "contracts" / "port_call_event_v1.schema.json"
 DIGITRAFFIC_SCHEMA = ROOT / "contracts" / "digitraffic_event_v2.schema.json"
+MARINE_ETA_SCHEMA = ROOT / "contracts" / "marine_eta_event_v1.schema.json"
 UtcTimestamp = Annotated[
     str,
     StringConstraints(pattern=r"Z$"),
@@ -60,10 +61,19 @@ class DigitrafficEvent(EventFields):
     schema_version: Literal["v2"]
 
 
+class MarineEtaEvent(EventFields):
+    """Validated ETA event normalized from Portnet or AIS data."""
+
+    model_config = ConfigDict(extra="forbid", title="PortPulse marine ETA event v1")
+    source_id: Literal["portnet", "ais"]
+    schema_version: Literal["marine-v1"]
+
+
 def write_json_schema():
     for path, schema in (
         (SCHEMA, build_json_schema()),
         (DIGITRAFFIC_SCHEMA, build_digitraffic_json_schema()),
+        (MARINE_ETA_SCHEMA, build_marine_eta_json_schema()),
     ):
         path.write_text(json.dumps(schema, indent=2) + "\n", encoding="utf-8")
 
@@ -79,6 +89,13 @@ def build_digitraffic_json_schema():
     schema = DigitrafficEvent.model_json_schema()
     schema["$schema"] = "https://json-schema.org/draft/2020-12/schema"
     schema["$id"] = "https://portpulse.example/schemas/digitraffic_event_v2.schema.json"
+    return schema
+
+
+def build_marine_eta_json_schema():
+    schema = MarineEtaEvent.model_json_schema()
+    schema["$schema"] = "https://json-schema.org/draft/2020-12/schema"
+    schema["$id"] = "https://portpulse.example/schemas/marine_eta_event_v1.schema.json"
     return schema
 
 

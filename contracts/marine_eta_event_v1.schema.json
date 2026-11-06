@@ -1,0 +1,60 @@
+{
+  "additionalProperties": false,
+  "description": "Validated ETA event normalized from Portnet or AIS data.",
+  "properties": {
+    "event_id": {
+      "minLength": 1,
+      "title": "Event Id",
+      "type": "string"
+    },
+    "port_call_id": {
+      "minLength": 1,
+      "title": "Port Call Id",
+      "type": "string"
+    },
+    "event_time_utc": {
+      "format": "date-time",
+      "pattern": "Z$",
+      "title": "Event Time Utc",
+      "type": "string"
+    },
+    "received_at_utc": {
+      "format": "date-time",
+      "pattern": "Z$",
+      "title": "Received At Utc",
+      "type": "string"
+    },
+    "eta_utc": {
+      "format": "date-time",
+      "pattern": "Z$",
+      "title": "Eta Utc",
+      "type": "string"
+    },
+    "source_id": {
+      "enum": [
+        "portnet",
+        "ais"
+      ],
+      "title": "Source Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "marine-v1",
+      "title": "Schema Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "event_id",
+    "port_call_id",
+    "event_time_utc",
+    "received_at_utc",
+    "eta_utc",
+    "source_id",
+    "schema_version"
+  ],
+  "title": "PortPulse marine ETA event v1",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://portpulse.example/schemas/marine_eta_event_v1.schema.json"
+}

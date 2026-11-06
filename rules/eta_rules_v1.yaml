@@ -11,6 +11,9 @@ sources:
   # Digitraffic visits use namespaced port_call_id values and do not compete
   # with the synthetic sources; priority 1 is a fallback if records are joined.
   digitraffic: {priority: 1, freshness_minutes: 120}
+  # Demo ranking only: Portnet schedule reports outrank vessel-reported AIS ETA.
+  portnet: {priority: 2, freshness_minutes: 120}
+  ais: {priority: 1, freshness_minutes: 120}
 
 event_identity:
   key: event_id

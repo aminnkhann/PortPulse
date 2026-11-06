@@ -121,7 +121,7 @@ def build_source_states(events, sources, as_of):
         event = latest_event(source_events)
         source_payload = event.get("source_payload")
         visit_status = (
-            source_payload.get("status")
+            source_payload.get("status", "Expected to Arrive")
             if isinstance(source_payload, dict)
             else "Expected to Arrive"
         )

@@ -58,6 +58,17 @@ docker compose exec db psql -U portpulse -d portpulse -c 'SELECT issue_code, cou
 
 `docker compose down` stops the service and keeps its data volume. Do not use `docker compose down -v` unless you intentionally want to delete the local database.
 
+## Compare Portnet and AIS ETAs
+
+Apply migration 006 to an existing database, then compare one UTC day of Portnet schedule reports with AIS vessel metadata:
+
+```sh
+docker compose exec -T db psql -U portpulse -d portpulse < migrations/006_add_portnet_ais_sources.sql
+python -m scripts.ingest_marine_etas --date 2026-11-06
+```
+
+The adapter can also be limited to one port with `--port FIHEL`. It pairs records only when MMSI, destination LOCODE, and ETA month/day identify exactly one Portnet call. Calls with recorded actual arrival or departure times are excluded; ambiguous or unmatched AIS records are skipped. It does not guess a call identity. The output shows both source ETAs and the selected winner. Portnet is configured above AIS only as a project demo assumption, not as a real-world authority claim. The adapter keeps only the fields needed to audit the matched ETA, avoiding unrelated vessel and agent details. Digitraffic data is provided under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
+
 `raw_event` allows different payload hashes for the same `event_id`, so a collision's variants can be retained. Its composite uniqueness rule prevents storing an exact event payload twice; the duplicate attempt belongs in `quality_issue`. Reconciliation must exclude every `raw_event` row whose ID has an `ID_COLLISION` issue. Invalid payloads belong in `rejected_event` and do not enter trusted state.
 
 ## Reconcile and inspect

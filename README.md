@@ -43,6 +43,12 @@ A vessel's estimated arrival time (ETA) can be updated by several independent so
 
 **Current demo:** After loading the fixture, run `python -m scripts.reconcile` and inspect the saved state with `python -m scripts.query_state PC-DEMO-001`. See [docs/database.md](docs/database.md) for setup details.
 
+## Phase 2 official ingestion
+
+The official Phase 2 demonstration is the independent Portnet V1 path: `python -m scripts.ingest_portnet --date YYYY-MM-DD`. It fetches the Portnet `/api/port-call/v1/port-calls` endpoint, validates ETA observations with the existing Pydantic marine event model, quarantines rejected details with reasons, stores observations in dedicated Portnet tables, and reports duplicate, collision, and pipeline-health counts. It does not call or require Digitraffic V2 or AIS. Apply migration 007 to existing databases; new databases apply it after migrations 001–006.
+
+The older Digitraffic V2 adapter and Portnet/AIS comparison remain experimental examples and are not prerequisites for this workflow. Multi-source reconciliation is optional because Phase 2 demonstrates a complete, explainable single-source ingestion path. The November 9 report records the historical multi-source experiment; the November 10 report records the separate Portnet-only run. Injected failures are documented separately and are not provider observations.
+
 **Out of scope:** Real vessel feeds, terminal equipment control, predictive ETA/ML, cloud deployment, Power BI, and claims of formal DCSA certification. Add-ons are discussed only after the MVP works.
 
 ## 2. User Stories and Acceptance Criteria

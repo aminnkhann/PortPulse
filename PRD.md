@@ -173,3 +173,6 @@ If dates are shorter than this assumption, retain the deterministic fixture, val
 ---
 
 **Version note:** v0.2 incorporates all 18 mentor-review themes (C1–C18): narrowed title/persona; provisional sizing and working reference links; frozen fixture/golden output; replay-safe time semantics and ID collisions; explicit precedence/late/conflict/stale rules; read-side requirement; testable portability; lean P0 architecture; source/fixture method; risk and milestone ownership; and complete acceptance demo. This document remains a **proposal pending group approval**.
+# Phase 2 official ingestion scope
+
+Phase 2's official real-data route uses only Digitraffic Portnet V1 (`/api/port-call/v1/port-calls`) for ingestion, validation, quarantine, PostgreSQL persistence, deduplication, and health reporting. The repository's Digitraffic V2 and AIS integrations are experimental and optional; the deliverable does not depend on multi-source reconciliation.

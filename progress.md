@@ -1,5 +1,9 @@
 # PortPulse project progress
 
+## Phase 2 official demonstration — Portnet V1 only
+
+The current Phase 2 ingestion route is `scripts.ingest_portnet`: one Portnet V1 API source, Pydantic validation, accepted observations and reasoned quarantine in dedicated PostgreSQL tables, deterministic duplicate/collision handling, replay safety, and health metrics. It is independent of the experimental Digitraffic V2 and Portnet/AIS adapters. See the separate [November 10 Portnet-only run](reports/phase2_portnet_only_live_ingestion_2026-11-10.md), [historical November 9 multi-source experiment](reports/phase2_marine_live_ingestion_2026-11-09.md), and [synthetic injected reliability checks](reports/phase2_portnet_injected_reliability_tests.md).
+
 - **Updated:** 2026-11-05
 - **Current stage:** Phase 1 MVP complete; Step 06 handover signed off
 - **Phase 1 MVP progress:** 100% (6 of 6 steps complete).

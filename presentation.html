@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="A presentation of the PortPulse data engineering project, its implemented phases, and its roadmap.">
+  <title>PortPulse — From ETA events to trusted data</title>
+  <style>
+    :root { color-scheme: dark; --ink: #edf4f6; --muted: #a9bec4; --teal: #68e0c0; --blue: #83baff; --panel: #142a35; --line: #34505d; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #0b1720; color: var(--ink); font: 18px/1.5 system-ui, sans-serif; }
+    .deck { min-height: 100svh; display: grid; grid-template-rows: 1fr auto; }
+    .slide { width: min(100%, 1120px); min-height: 0; margin: auto; padding: clamp(2rem, 7vw, 6rem); display: flex; flex-direction: column; justify-content: center; }
+    .slide[hidden] { display: none; }
+    .eyebrow { color: var(--teal); text-transform: uppercase; letter-spacing: .14em; font-size: .78rem; font-weight: 750; }
+    h1, h2 { max-width: 900px; margin: .4rem 0 1.2rem; line-height: 1.08; letter-spacing: -.035em; }
+    h1 { font-size: clamp(2.5rem, 7vw, 5.5rem); }
+    h2 { font-size: clamp(2rem, 5vw, 3.8rem); }
+    p, li { max-width: 850px; color: var(--muted); font-size: clamp(1rem, 2vw, 1.25rem); }
+    strong { color: var(--ink); }
+    .lead { max-width: 780px; font-size: clamp(1.2rem, 2.6vw, 1.7rem); }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 1rem; margin-top: 1.5rem; }
+    .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 1.2rem; }
+    .card h3 { margin: 0 0 .5rem; color: var(--teal); font-size: 1.05rem; }
+    .card p { margin: 0; font-size: 1rem; }
+    .flow { display: flex; flex-wrap: wrap; align-items: center; gap: .55rem; margin: 1.5rem 0; }
+    .step { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: .7rem .9rem; color: var(--ink); }
+    .arrow { color: var(--teal); font-weight: 800; }
+    code { color: #c7e5ff; background: #0a141b; border-radius: 5px; padding: .15rem .35rem; font-size: .9em; }
+    pre { overflow-x: auto; background: #071118; border: 1px solid var(--line); border-radius: 12px; padding: 1rem 1.25rem; color: #c7e5ff; font-size: clamp(.82rem, 1.5vw, 1rem); }
+    .note { border-left: 3px solid var(--blue); padding-left: 1rem; }
+    .controls { position: sticky; bottom: 0; display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .8rem max(1rem, calc((100vw - 1060px) / 2)); background: #0b1720ee; border-top: 1px solid var(--line); }
+    .controls button { border: 1px solid var(--line); border-radius: 8px; padding: .55rem .9rem; background: var(--panel); color: var(--ink); font: inherit; cursor: pointer; }
+    .controls button:hover, .controls button:focus-visible { border-color: var(--teal); outline: 2px solid transparent; }
+    #count { color: var(--muted); font-variant-numeric: tabular-nums; }
+    @media (max-width: 600px) { body { font-size: 16px; } .slide { padding: 2rem 1.25rem; } .controls { padding: .65rem .8rem; } }
+    @media print { body { background: white; color: #14212a; } .deck { display: block; } .slide, .slide[hidden] { display: flex !important; min-height: 100vh; page-break-after: always; color: #14212a; } .slide p, .slide li { color: #334a55; } .card, .step, pre { background: white; color: #14212a; border-color: #9aabb2; } .eyebrow, .card h3, .arrow { color: #087b68; } .controls { display: none; } }
+  </style>
+</head>
+<body>
+  <main class="deck" aria-label="PortPulse presentation">
+    <section class="slide" id="slide-1" aria-labelledby="title">
+      <p class="eyebrow">PortPulse · Data engineering project</p>
+      <h1 id="title">From ETA events to trusted port-call data</h1>
+      <p class="lead">A small, explainable pipeline that validates what arrives, keeps the evidence, and makes the current ETA easier to trust.</p>
+      <p>Phase 1: deterministic synthetic events · Phase 2: real Portnet V1 ETL</p>
+    </section>
+
+    <section class="slide" id="slide-2" aria-labelledby="problem" hidden>
+      <p class="eyebrow">01 · The problem</p>
+      <h2 id="problem">An ETA is a changing observation</h2>
+      <div class="grid">
+        <article class="card"><h3>Data can be invalid</h3><p>Missing or malformed fields should be explained, not silently accepted.</p></article>
+        <article class="card"><h3>Data can repeat</h3><p>Re-polls can deliver the same observation more than once.</p></article>
+        <article class="card"><h3>Data can conflict</h3><p>A later update can revise an earlier ETA, and timestamps have different meanings.</p></article>
+      </div>
+      <p class="note">The goal is a traceable data process: retain what arrived, record quality outcomes, and make decisions explicit.</p>
+    </section>
+
+    <section class="slide" id="slide-3" aria-labelledby="map" hidden>
+      <p class="eyebrow">02 · The project map</p>
+      <h2 id="map">Build confidence in steps</h2>
+      <div class="grid">
+        <article class="card"><h3>Phase 1 · Built</h3><p>Prove validation and reconciliation with fixed synthetic events.</p></article>
+        <article class="card"><h3>Phase 2 · Built</h3><p>Ingest real ETA observations from Digitraffic Portnet V1.</p></article>
+        <article class="card"><h3>Next · dbt</h3><p>Turn stored observations into documented, testable data models.</p></article>
+        <article class="card"><h3>Phase 3 · Planned</h3><p>Use Airflow to schedule work and AWS to host the pipeline.</p></article>
+      </div>
+      <p>Only the first two phases are implemented in the current project.</p>
+    </section>
+
+    <section class="slide" id="slide-4" aria-labelledby="phase1" hidden>
+      <p class="eyebrow">03 · Phase 1</p>
+      <h2 id="phase1">A controlled first pipeline</h2>
+      <div class="flow" aria-label="JSON Lines fixture flows through validation and PostgreSQL into reconciliation and a query result">
+        <span class="step">JSONL fixture</span><span class="arrow">→</span><span class="step">Pydantic validation</span><span class="arrow">→</span><span class="step">PostgreSQL</span><span class="arrow">→</span><span class="step">Reconciliation</span><span class="arrow">→</span><span class="step">Query result</span>
+      </div>
+      <ul>
+        <li>The fixture is synthetic and checked into the repository.</li>
+        <li>Bad rows are rejected with reasons; accepted events remain available for analysis.</li>
+        <li>Versioned rules choose a trusted state, and replay produces the same golden result.</li>
+      </ul>
+    </section>
+
+    <section class="slide" id="slide-5" aria-labelledby="trust" hidden>
+      <p class="eyebrow">04 · Trust and traceability</p>
+      <h2 id="trust">Keep the evidence behind the answer</h2>
+      <div class="grid">
+        <article class="card"><h3>Validate</h3><p>Reject malformed events and keep a reason for each rejection.</p></article>
+        <article class="card"><h3>Deduplicate carefully</h3><p>Separate exact repeats from ID collisions; collided IDs cannot update trusted state.</p></article>
+        <article class="card"><h3>Track three clocks</h3><p>Source update, collection/receipt, and database ingestion each answer a different question.</p></article>
+      </div>
+      <p class="note">A replayable fixture makes the core behavior explainable without depending on a live API.</p>
+    </section>
+
+    <section class="slide" id="slide-6" aria-labelledby="phase2" hidden>
+      <p class="eyebrow">05 · Phase 2</p>
+      <h2 id="phase2">One supported live source</h2>
+      <div class="flow" aria-label="Portnet V1 API flows through Python and Pydantic into accepted observations or quarantine in PostgreSQL, then health reporting">
+        <span class="step">Digitraffic Portnet V1</span><span class="arrow">→</span><span class="step">Python adapter</span><span class="arrow">→</span><span class="step">Pydantic validation</span><span class="arrow">→</span><span class="step">PostgreSQL</span><span class="arrow">→</span><span class="step">Quality report</span>
+      </div>
+      <ul>
+        <li>Accepted observations, rejected records, and quality issues go to dedicated Portnet tables.</li>
+        <li>ETA revisions are new observations; exact repeats and ID collisions are counted separately.</li>
+        <li>The supported path calls Portnet V1 only.</li>
+      </ul>
+    </section>
+
+    <section class="slide" id="slide-7" aria-labelledby="identity" hidden>
+      <p class="eyebrow">06 · Identity and time</p>
+      <h2 id="identity">A revision is not automatically a duplicate</h2>
+      <p class="lead">For Portnet, an observation is identified by its port call, port area, and provider update timestamp.</p>
+      <div class="grid">
+        <article class="card"><h3>Provider update time</h3><p>When the source says its record changed.</p></article>
+        <article class="card"><h3>Collection time</h3><p>When PortPulse received the API response.</p></article>
+        <article class="card"><h3>Ingestion time</h3><p>When PostgreSQL stored the row.</p></article>
+      </div>
+      <p>Keeping these clocks separate helps explain delays and makes stored results auditable.</p>
+    </section>
+
+    <section class="slide" id="slide-8" aria-labelledby="evidence" hidden>
+      <p class="eyebrow">07 · What the evidence says</p>
+      <h2 id="evidence">Separate live observations from test cases</h2>
+      <div class="grid">
+        <article class="card"><h3>One documented live run</h3><p>125 records received: 59 active calls, 65 completed, and 1 without ETA. The 59 active calls yielded 59 accepted observations.</p></article>
+        <article class="card"><h3>Injected reliability cases</h3><p>Six deterministic tests cover invalid data, ambiguous areas, repeat polls, and ID collisions. These are synthetic test inputs.</p></article>
+        <article class="card"><h3>Limits to state clearly</h3><p>Live reports are snapshots. They do not prove long-term provider reliability or behavior across a continuing series of polls.</p></article>
+      </div>
+    </section>
+
+    <section class="slide" id="slide-9" aria-labelledby="demo" hidden>
+      <p class="eyebrow">08 · A local walkthrough</p>
+      <h2 id="demo">Run the deterministic path yourself</h2>
+      <p>Start PostgreSQL with Docker Compose, install the project requirements, then run:</p>
+      <pre><code>python -m scripts.ingest_fixture
+python -m scripts.reconcile
+python -m scripts.query_state PC-DEMO-001</code></pre>
+      <p>The expected trusted ETA is <strong>2026-01-15 15:40 UTC</strong>, selected from the synthetic event history. For Portnet, use <code>python -m scripts.ingest_portnet --date YYYY-MM-DD</code> with a date supported by the API.</p>
+    </section>
+
+    <section class="slide" id="slide-10" aria-labelledby="takeaway" hidden>
+      <p class="eyebrow">09 · What this project demonstrates</p>
+      <h2 id="takeaway">Trust comes from a visible process</h2>
+      <ul>
+        <li>Validate data at the boundary and keep rejected records explainable.</li>
+        <li>Make identity, deduplication, and time rules explicit.</li>
+        <li>Keep deterministic tests separate from live API evidence.</li>
+        <li>Store enough history to explain how a result was produced.</li>
+      </ul>
+      <p class="lead">The result is a small pipeline that can be inspected, replayed, and extended in clear steps.</p>
+    </section>
+
+    <section class="slide" id="slide-11" aria-labelledby="future" hidden>
+      <p class="eyebrow">10 · The road ahead</p>
+      <h2 id="future">Next: dbt. Then Phase 3: Airflow and AWS.</h2>
+      <div class="grid">
+        <article class="card"><h3>Next · dbt</h3><p>Build clean, tested models over the PostgreSQL observations and quality tables.</p></article>
+        <article class="card"><h3>Phase 3 · Airflow</h3><p>Schedule and monitor the ingestion and transformation steps.</p></article>
+        <article class="card"><h3>Phase 3 · AWS</h3><p>Move the chosen pipeline components into a cloud environment.</p></article>
+      </div>
+      <p class="note">These are future goals. dbt, Airflow, and AWS are not implemented in the current project.</p>
+    </section>
+
+    <nav class="controls" aria-label="Slide controls">
+      <button id="previous" type="button" aria-label="Previous slide">← Previous</button>
+      <span id="count" aria-live="polite">Slide 1 of 11</span>
+      <button id="next" type="button" aria-label="Next slide">Next →</button>
+    </nav>
+  </main>
+  <script>
+    const slides = [...document.querySelectorAll('.slide')];
+    const count = document.querySelector('#count');
+    let current = 0;
+
+    function showSlide(index) {
+      current = Math.max(0, Math.min(index, slides.length - 1));
+      slides.forEach((slide, i) => { slide.hidden = i !== current; });
+      count.textContent = `Slide ${current + 1} of ${slides.length}`;
+      document.querySelector('#previous').disabled = current === 0;
+      document.querySelector('#next').disabled = current === slides.length - 1;
+      history.replaceState(null, '', `#slide-${current + 1}`);
+    }
+
+    document.querySelector('#previous').addEventListener('click', () => showSlide(current - 1));
+    document.querySelector('#next').addEventListener('click', () => showSlide(current + 1));
+    document.addEventListener('keydown', event => {
+      if (event.key === 'ArrowRight') showSlide(current + 1);
+      if (event.key === 'ArrowLeft') showSlide(current - 1);
+      if (event.key === 'Home') showSlide(0);
+      if (event.key === 'End') showSlide(slides.length - 1);
+    });
+    const initial = Number(location.hash.match(/^#slide-(\d+)$/)?.[1] || 1) - 1;
+    showSlide(initial);
+  </script>
+</body>
+</html>

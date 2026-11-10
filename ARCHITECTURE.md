@@ -146,3 +146,6 @@ The team should record each accepted decision as a short ADR: **context → alte
 ## 7. Demo
 
 Play normal ETA → duplicate event → out-of-order older event → conflicting source. Query current state and show unchanged trusted ETA after replay, with audit reasons.
+# Official Phase 2 ingestion route
+
+The supported Phase 2 demonstration is Digitraffic Portnet V1 → Python → Pydantic validation → accepted observation or reasoned quarantine → PostgreSQL → duplicate/collision accounting and pipeline-health output. `scripts.ingest_portnet` uses dedicated tables introduced by migration 007 and runs independently of the older Digitraffic V2 adapter and Portnet/AIS comparison. Those earlier paths remain experimental; multi-source matching is optional and is not a prerequisite for demonstrating source ingestion quality.

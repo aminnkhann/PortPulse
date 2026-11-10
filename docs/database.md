@@ -88,6 +88,20 @@ To check the generated ingestion timestamps:
 docker compose exec db psql -U portpulse -d portpulse -c 'SELECT event_id, received_at_utc, ingested_at_utc FROM raw_event ORDER BY ingested_at_utc LIMIT 5;'
 ```
 
+This comparison is an experimental multi-source path. The official Phase 2 demonstration is separate Portnet V1 ingestion using dedicated tables, so it does not require this adapter or AIS data. For a new database, migration 007 is applied after 001–006 automatically. To upgrade an existing database through 006, apply:
+
+```sh
+docker compose exec -T db psql -U portpulse -d portpulse < migrations/007_create_portnet_eta_tables.sql
+```
+
+Run the official Portnet-only path with `DATABASE_URL` set to a PostgreSQL database:
+
+```sh
+DATABASE_URL="${DATABASE_URL:?set a PostgreSQL URL}" python -m scripts.ingest_portnet --date 2026-11-10
+```
+
+It preserves Portnet's `etaTimestamp` as source update time, records collection time separately, and lets PostgreSQL assign ingestion time. A port call and area define the identity scope; the provider update timestamp distinguishes legitimate revisions. Exact repeats are recorded as quality issues, changed payloads reusing an event ID are retained and flagged as collisions, and invalid observations are stored in the dedicated quarantine table.
+
 ## Clean-clone handover
 
 From a fresh checkout, run the following commands from the project root. Docker starts a new local database volume for the clone; the fixture and rules are already included in the repository.

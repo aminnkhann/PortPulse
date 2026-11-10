@@ -69,6 +69,27 @@ class MarineEtaEvent(EventFields):
     schema_version: Literal["marine-v1"]
 
 
+class PortnetEtaPayload(BaseModel):
+    """Selected Portnet ETA fields retained for audit."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    port_call_id: Annotated[int, Field(gt=0)]
+    port_area_code: str | None
+    eta_utc: UtcTimestamp
+    eta_source: str | None
+    eta_timestamp_utc: UtcTimestamp
+
+    @field_validator("eta_utc", "eta_timestamp_utc")
+    @classmethod
+    def check_utc_timestamp(cls, value):
+        try:
+            datetime.fromisoformat(value[:-1] + "+00:00")
+        except ValueError as error:
+            raise ValueError("must be an ISO-8601 UTC timestamp ending in Z") from error
+        return value
+
+
 def write_json_schema():
     for path, schema in (
         (SCHEMA, build_json_schema()),

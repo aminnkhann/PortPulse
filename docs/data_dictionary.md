@@ -55,4 +55,6 @@ For reproducible checks, use fixed sample responses and test the mapping, repeat
 
 ## Portnet and AIS comparison
 
+**Status:** experimental historical comparison. The official Phase 2 ingestion is the separate Portnet V1-only adapter described in the runbook. Neither V2 nor AIS is required for it.
+
 The optional `scripts.ingest_marine_etas` adapter compares Portnet's port-call ETA (`eta`, `etaTimestamp`, `etaSource`) with vessel-reported AIS ETA (`eta`, `timestamp`) for a shared Portnet call. It maps only unique matches by MMSI, destination port, and ETA month/day, and excludes calls with recorded actual arrival or departure times. Since AIS encodes ETA without a year, the matched Portnet ETA supplies the year. `portnet` (priority 2) and `ais` (priority 1) share `maritime:<portCallId>` call IDs; these priorities are demonstration assumptions. Ambiguous identity matches are not reconciled. Only fields needed to explain each ETA are retained.

@@ -1,75 +1,49 @@
-# User stories and acceptance criteria — PortPulse — Operational Event Integrity & Terminal Readiness
+# User Stories and Acceptance
 
-**Status:** Draft candidates for group refinement. The guide asks the team to define realistic functions; the mentor additionally requested user stories. User stories are not a separately named mandatory document in the guide.
+## Phase 1 — synthetic reconciliation
 
-**Delivery phases:** Phase 1 is Steps 01–06 (P0/MVP). Phase 2 is Stretch 1 (P1), including expanded API/scenarios, database integration checks and reporting. Phase 3 is Stretch 2 (P2), for optional platform and deployment work. Stretch work starts after Phase 1. P1 stories are optional and not part of the MVP gate.
+### US-01: Explain the trusted ETA
 
-**Story format:** As a [role], I want [behavior], so that [benefit]. Each criterion below should be verified by a small fixture or repeatable test.
+As an operations analyst, I want the current synthetic ETA, its winning event, and its source so I can explain the result.
 
-## PP-US01 — P0
+**Acceptance:** scripts.query_state returns the golden ETA and lineage for PC-DEMO-001; the expected result is in fixtures/expected_output.json.
 
-**Story:** As a **Operations analyst**, I want to **view the trusted current ETA and which event determined it** so that **I avoid using stale ETA information**.
+**Status:** Implemented and covered by Phase 1 reconciliation tests.
 
-**Traceability:** PP-FR04.
+### US-02: Keep invalid and duplicate input from corrupting state
 
-**Acceptance criteria:**
+As a data engineer, I want malformed, duplicated, and colliding fixture events classified so I can trust the reconciled output.
 
-1. Given one valid ETA event for a port call, when the query is made, then the ETA, event ID, source and update time are returned.
-2. Given a later valid update from the same authority, when the state is rebuilt, then the newer ETA is current and the earlier one remains in history.
+**Acceptance:** Invalid input is quarantined with a reason; exact duplicates are counted; every variant of a colliding ID is excluded from trusted state.
 
-**Implementation status:** Not started. **Owner:** Group to assign. **Reviewer:** Another group member.
+**Status:** Implemented and covered by fixture and database tests.
 
-## PP-US02 — P0
+### US-03: Make time and source rules visible
 
-**Story:** As a **Data engineer**, I want to **exclude malformed and duplicated messages from trusted state** so that **bad inputs cannot silently change business results**.
+As a reviewer, I want late, stale, and conflicting synthetic events reported using explicit rules so I can reproduce the state.
 
-**Traceability:** PP-FR02, PP-FR03.
+**Acceptance:** Fixed as_of_utc, source priorities, freshness, conflict, delay, and ordering behavior match the golden result.
 
-**Acceptance criteria:**
+**Status:** Implemented and covered by deterministic tests.
 
-1. Given an event missing `port_call_id`, when validation runs, then the original payload and a reason are retained outside trusted state.
-2. Given the same `event_id` twice, when ingestion is repeated, then trusted event count does not increase twice.
+## Phase 2 — Portnet V1 ingestion
 
-**Implementation status:** Not started. **Owner:** Group to assign. **Reviewer:** Another group member.
+### US-04: Ingest and validate Portnet ETA observations
 
-## PP-US03 — P0
+As a data engineer, I want Portnet V1 records validated and stored so the project demonstrates a real-source ETL path.
 
-**Story:** As a **Operations analyst**, I want to **see a warning when ETA sources disagree** so that **I know the operational view requires investigation**.
+**Acceptance:** Valid observations enter portnet_eta_observation; invalid or ambiguous records enter quarantine with a reason; the CLI reports pipeline-health counts.
 
-**Traceability:** PP-FR06.
+**Status:** Implemented in scripts/ingest_portnet.py.
 
-**Acceptance criteria:**
+### US-05: Preserve revisions and make replay safe
 
-1. Given two valid equal-authority sources with materially different active ETA values, when state is queried, then `conflict_flag` and affected sources are returned.
-2. Given an outdated source, when freshness threshold is exceeded, then the response shows a stale-source warning.
+As a reviewer, I want provider updates for each call and area preserved as history while exact repeats and ID collisions are visible.
 
-**Implementation status:** Not started. **Owner:** Group to assign. **Reviewer:** Another group member.
+**Acceptance:** A distinct etaTimestamp creates a new revision; an unchanged replay does not add another observation; changed content reusing an ID is recorded as a collision.
 
-## PP-US04 — P0
+**Status:** Implemented and covered by deterministic injected and PostgreSQL tests.
 
-**Story:** As a **Data engineer**, I want to **reconstruct state from a history containing a late event** so that **an out-of-order arrival does not corrupt current values**.
+## Evidence
 
-**Traceability:** PP-FR05, PP-FR07.
-
-**Acceptance criteria:**
-
-1. Given a newer event followed by an older event received late, when the history is replayed, then current ETA matches the documented ordering policy.
-2. Given replay of exactly the same fixture, when rerun, then trusted state equals the first run.
-
-**Implementation status:** Not started. **Owner:** Group to assign. **Reviewer:** Another group member.
-
-## PP-US05 — P1
-
-**Story:** As a **Platform support**, I want to **inspect reasons for validation failures** so that **I can investigate errors without reading every log**.
-
-**Traceability:** PP-FR02.
-
-**Acceptance criteria:**
-
-1. Given rejected messages, when quality summary is requested, then rejected count and reason categories are visible.
-
-**Implementation status:** Not started. **Owner:** Group to assign. **Reviewer:** Another group member.
-
-## Story workflow
-
-During planning, agree on P0 priority and ownership; before implementation, create one issue per P0 story. For each issue, add expected input fixture, output behavior, test name, file ownership and reviewer. No story is complete merely because code runs once: it must pass acceptance tests and be reviewed by another group member.
+The fixtures and injected reliability cases are synthetic. Live Portnet observations are documented in separate dated reports. The November 9 Portnet/AIS comparison is historical evidence only.

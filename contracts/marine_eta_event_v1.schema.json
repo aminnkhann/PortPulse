@@ -1,6 +1,6 @@
 {
   "additionalProperties": false,
-  "description": "Validated ETA event normalized from Portnet or AIS data.",
+  "description": "Validated ETA event normalized from Portnet V1.",
   "properties": {
     "event_id": {
       "minLength": 1,
@@ -31,10 +31,7 @@
       "type": "string"
     },
     "source_id": {
-      "enum": [
-        "portnet",
-        "ais"
-      ],
+      "const": "portnet",
       "title": "Source Id",
       "type": "string"
     },
@@ -53,7 +50,7 @@
     "source_id",
     "schema_version"
   ],
-  "title": "PortPulse marine ETA event v1",
+  "title": "PortPulse Portnet ETA event v1",
   "type": "object",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://portpulse.example/schemas/marine_eta_event_v1.schema.json"

@@ -51,6 +51,54 @@ docker compose exec db psql -U portpulse -d portpulse -c 'SELECT reason_code, co
 docker compose exec db psql -U portpulse -d portpulse -c 'SELECT issue_code, count(*) FROM portnet_eta_quality_issue GROUP BY issue_code ORDER BY issue_code;'
 ~~~
 
+## Build dbt analytics
+
+The dbt project uses the pinned `dbt-postgres` version in `requirements-dbt.txt`. From the repository root, create an environment and install the application and dbt dependencies:
+
+~~~sh
+python -m venv .venv-dbt
+source .venv-dbt/bin/activate
+python -m pip install -r requirements.txt -r requirements-dbt.txt
+~~~
+
+Start PostgreSQL with `docker compose up -d db`. A fresh Docker volume applies migrations 001–007 automatically. For an existing database, follow the migration guidance above and make sure migration 007 has been applied.
+
+The project reads a `portpulse_analytics` profile from `~/.dbt/profiles.yml`. If you do not already have a profiles file, copy the safe example; if you do, add its `portpulse_analytics` entry without replacing other profiles:
+
+~~~sh
+mkdir -p ~/.dbt
+cp dbt/profiles.example.yml ~/.dbt/profiles.yml
+~~~
+
+Set connection values in your shell. Use the same password configured for the Compose database; the shown password is only Compose's local development default:
+
+~~~sh
+export DBT_HOST=127.0.0.1
+export DBT_PORT=5432
+export DBT_USER=portpulse
+export DBT_PASSWORD=portpulse_local_only
+export DBT_DATABASE=portpulse
+export DBT_SCHEMA=analytics
+~~~
+
+From the dbt project directory, check the connection and build all three models and their data tests:
+
+~~~sh
+cd dbt
+dbt debug
+dbt build
+~~~
+
+Inspect the staging view and analytics tables from the repository root:
+
+~~~sh
+docker compose exec -T db psql -U portpulse -d portpulse -c 'SELECT * FROM analytics.stg_portnet_eta LIMIT 5;'
+docker compose exec -T db psql -U portpulse -d portpulse -c 'SELECT * FROM analytics.mart_portnet_latest_eta ORDER BY port_call_id, port_area_code;'
+docker compose exec -T db psql -U portpulse -d portpulse -c 'SELECT * FROM analytics.mart_pipeline_quality;'
+~~~
+
+The CI fixture rows are synthetic and are not loaded by local dbt commands. No live maritime API call is needed to build the models.
+
 ## Tests
 
 With a disposable PostgreSQL database running, set PORTPULSE_TEST_DATABASE_URL and run:

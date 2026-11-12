@@ -104,7 +104,8 @@ The CI fixture rows are synthetic and are not loaded by local dbt commands. No l
 With a disposable PostgreSQL database running, set PORTPULSE_TEST_DATABASE_URL and run:
 
 ~~~sh
-PORTPULSE_TEST_DATABASE_URL=postgresql://portpulse:portpulse_local_only@127.0.0.1:5432/portpulse \
+docker compose exec -T db createdb -U portpulse portpulse_test
+PORTPULSE_TEST_DATABASE_URL=postgresql://portpulse:portpulse_local_only@127.0.0.1:5432/portpulse_test \
   python -m unittest discover -s tests -v
 ruff check .
 ~~~

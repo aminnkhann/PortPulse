@@ -1,26 +1,111 @@
 # PortPulse
 
-PortPulse is a local data engineering project that demonstrates deterministic ETA reconciliation and a real single-source ETL pipeline.
+PortPulse is a small data engineering capstone that ingests port-call ETA updates, validates and stores them, then produces queryable analytics. Its supported real-data path is **Digitraffic Portnet V1 → Python/Pydantic → PostgreSQL → dbt → analytics marts**, orchestrated by Apache Airflow.
 
-## Supported scope
+## Architecture and data
 
-- **Phase 1:** process a fixed synthetic port-call fixture, validate and quarantine records, detect duplicates and ID collisions, reconcile a trusted ETA, and query its history.
-- **Phase 2:** fetch Digitraffic Portnet V1 observations, validate them with Pydantic, store accepted and rejected observations in PostgreSQL, and report pipeline-health metrics.
+- **Phase 1 (synthetic):** deterministic JSONL fixtures exercise validation, quarantine, duplicate and ID-collision handling, and trusted ETA reconciliation across three simulated sources. The golden ETA is `2026-01-15T15:40:00Z` from `COORD-DELAYED-01`.
+- **Phases 2–3 (Portnet):** the existing Python CLI fetches Portnet V1 records, validates and stores observations/rejections/quality issues in PostgreSQL, and dbt builds staging and analytics marts. Real Portnet observations are not reconciled by the Phase 1 synthetic engine.
+- **Orchestration:** one Airflow DAG runs ingestion, `dbt build`, then database and metric verification. Airflow adds orchestration only; PostgreSQL remains the application store.
 
-The supported live ingestion command is python -m scripts.ingest_portnet. Digitraffic V2 and AIS ingestion are not included in the supported workflow. Their old migrations and the November 9 comparison report remain as history. Existing generic raw_event rows are not dropped. Kafka, FastAPI, and cloud services are not implemented. The dbt project in dbt/ provides Portnet staging and analytics models.
+No Kafka, MQTT, AIS, other API provider, cloud deployment, or dashboard is part of the supported workflow. The old V2/AIS experiment remains historical only.
 
-## Run Phase 1 locally
+## Local prerequisites and installation
 
-Install the dependencies and start PostgreSQL:
+Use Ubuntu with Python 3.12, Docker Compose, and a working local PostgreSQL Docker service. From the repository root:
 
 ~~~sh
-python -m venv .venv
+python3.12 -m venv .venv
 source .venv/bin/activate
-python -m pip install -r requirements.txt
-docker compose up -d
+python -m pip install -r requirements.txt -r requirements-dbt.txt
+docker compose up -d db
+docker compose ps
 ~~~
 
-Load and reconcile the fixture, then query the result:
+A fresh PostgreSQL volume applies migrations 001–007 in order. For an existing database, apply any missing migration only; see [database runbook](docs/database.md). Do not replay already-applied migrations.
+
+## Run the ingestion CLI independently
+
+The supported adapter remains usable without Airflow. Provide a UTC collection date:
+
+~~~sh
+python -m scripts.ingest_portnet --date 2026-11-12
+~~~
+
+Add `--port FIHEL` to filter by port. The CLI uses `DATABASE_URL` when set, otherwise the local Compose development connection. Repeated runs use the existing duplicate, collision, and quarantine behavior.
+
+## Build dbt analytics
+
+Create a project-local profile directory (ignored by Git) so you do not overwrite a personal dbt profile:
+
+~~~sh
+mkdir -p .dbt-profile
+cp dbt/profiles.example.yml .dbt-profile/profiles.yml
+export DBT_PROFILES_DIR="$PWD/.dbt-profile"
+export DATABASE_URL='postgresql://portpulse:portpulse_local_only@127.0.0.1:5432/portpulse'
+export DBT_HOST=127.0.0.1
+export DBT_PORT=5432
+export DBT_USER=portpulse
+export DBT_PASSWORD=portpulse_local_only
+export DBT_DATABASE=portpulse
+export DBT_SCHEMA=analytics
+cd dbt
+dbt debug
+dbt build
+cd ..
+~~~
+
+Replace the local development password with the value configured for your database. Do not commit passwords, `.env` files, or personal dbt profiles. `dbt build` builds all three models and runs their data tests.
+
+## Run the Airflow pipeline
+
+The local development setup pins Apache Airflow 2.10.5. Its [official quick start](https://airflow.apache.org/docs/apache-airflow/2.10.5/start.html) supports Python 3.12 and recommends pip with the versioned constraints file. Install Airflow with those constraints, then install the project/dbt requirements while repeating the Airflow pin to prevent accidental upgrade or downgrade.
+
+~~~sh
+python3.12 -m venv .venv-airflow
+source .venv-airflow/bin/activate
+python -m pip install -r requirements-airflow.txt \
+  --constraint https://raw.githubusercontent.com/apache/airflow/constraints-2.10.5/constraints-3.12.txt
+python -m pip install -r requirements-airflow.txt -r requirements.txt -r requirements-dbt.txt
+mkdir -p .dbt-profile
+cp dbt/profiles.example.yml .dbt-profile/profiles.yml
+export DBT_PROFILES_DIR="$PWD/.dbt-profile"
+export AIRFLOW_HOME="$PWD/.airflow"
+export AIRFLOW__CORE__DAGS_FOLDER="$PWD/dags"
+export AIRFLOW__CORE__LOAD_EXAMPLES=False
+export DATABASE_URL='postgresql://portpulse:portpulse_local_only@127.0.0.1:5432/portpulse'
+export DBT_HOST=127.0.0.1 DBT_PORT=5432 DBT_USER=portpulse
+export DBT_PASSWORD=portpulse_local_only DBT_DATABASE=portpulse DBT_SCHEMA=analytics
+airflow standalone
+~~~
+
+This runs Airflow locally with a separate SQLite metadata database; the PortPulse application still uses the existing PostgreSQL service. Open [http://localhost:8080](http://localhost:8080) and use the admin credentials printed by `airflow standalone`. The `.airflow/` directory is ignored by Git. Keep the local-only credentials private.
+
+The DAG ID is `portpulse_daily_pipeline`. It runs daily at 06:00 UTC, with catch-up disabled and at most one active run. Its tasks run sequentially: `ingest_portnet` → `build_dbt_analytics` → `verify_pipeline`. To trigger from another terminal, use the same Airflow environment and repository root:
+
+~~~sh
+source .venv-airflow/bin/activate
+export AIRFLOW_HOME="$PWD/.airflow"
+export AIRFLOW__CORE__DAGS_FOLDER="$PWD/dags"
+airflow dags trigger --conf '{"run_date":"2026-11-12"}' portpulse_daily_pipeline
+airflow dags list-runs -d portpulse_daily_pipeline
+~~~
+
+Omit `--conf` to use the run's logical date converted to UTC. The UI Graph view and each task's Logs tab show the execution order, command output, dbt tests, and final health summary.
+
+To trigger in the UI, open the DAG, select **Trigger DAG**, and optionally enter `{"run_date":"2026-11-12"}` as the JSON configuration before confirming.
+
+## Query analytics outputs
+
+Run these from the repository root after `dbt build`:
+
+~~~sh
+docker compose exec -T db psql -U portpulse -d portpulse -c 'SELECT * FROM analytics.stg_portnet_eta LIMIT 5;'
+docker compose exec -T db psql -U portpulse -d portpulse -c 'SELECT port_call_id, port_area_code, event_id, event_time_utc, eta_utc FROM analytics.mart_portnet_latest_eta ORDER BY port_call_id, port_area_code;'
+docker compose exec -T db psql -U portpulse -d portpulse -c 'SELECT * FROM analytics.mart_pipeline_quality;'
+~~~
+
+## Phase 1 synthetic reconciliation
 
 ~~~sh
 python -m scripts.ingest_fixture
@@ -28,38 +113,27 @@ python -m scripts.reconcile
 python -m scripts.query_state PC-DEMO-001
 ~~~
 
-The golden result selects COORD-DELAYED-01 with ETA 2026-01-15T15:40:00Z. The fixture and expected result are deterministic; they contain synthetic data only.
+## Tests and checks
 
-## Run Phase 2 Portnet V1
-
-The Portnet command uses DATABASE_URL, or the local PostgreSQL default:
+Create a separate test database once, then use it for the integration suite. This keeps the `portpulse` application database untouched:
 
 ~~~sh
-python -m scripts.ingest_portnet --date 2026-11-10
-~~~
-
-Use --port FIHEL to filter by port. The date is required. New Docker database volumes apply migrations 001–007 in order. An existing database already through migration 006 needs migration 007 applied once; see the database runbook.
-
-Portnet records retain provider update time, API collection time, and database ingestion time separately. A stable identity includes port call, port area, and provider update time, so a legitimate ETA revision becomes a new observation. Invalid observations are quarantined with reasons; exact repeats and same-ID payload collisions are reported separately.
-
-## Run checks
-
-With PostgreSQL running, point integration tests to a disposable database:
-
-~~~sh
-PORTPULSE_TEST_DATABASE_URL=postgresql://portpulse:portpulse_local_only@127.0.0.1:5432/portpulse \
+docker compose exec -T db createdb -U portpulse portpulse_test
+PORTPULSE_TEST_DATABASE_URL=postgresql://portpulse:portpulse_local_only@127.0.0.1:5432/portpulse_test \
   python -m unittest discover -s tests -v
 ruff check .
+cd dbt && dbt debug && dbt build
 ~~~
 
-Without PORTPULSE_TEST_DATABASE_URL, PostgreSQL integration tests are skipped. GitHub Actions supplies a disposable PostgreSQL service.
+Airflow parse and task checks are included in the Python suite when the Airflow dependencies are installed. GitHub Actions runs Python tests, Ruff, DAG import checks, and dbt build against deterministic fixtures; it does not call the live API.
 
 ## Project guide
 
 - [Product requirements](PRD.md)
 - [Architecture](ARCHITECTURE.md)
-- [User stories](USER_STORIES.md)
-- [Progress and deadline](progress.md)
 - [Database runbook](docs/database.md)
-- [Data dictionary and dbt readiness](docs/data_dictionary.md)
-- [Historical live observations](reports/)
+- [Data dictionary](docs/data_dictionary.md)
+- [Final demo runbook](docs/final_demo.md)
+- [Presentation outline](docs/presentation_outline.md)
+- [Progress](progress.md)
+- [Dated reports](reports/)

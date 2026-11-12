@@ -1,25 +1,19 @@
 # PortPulse Progress
 
-**Updated:** 2026-11-10
+**Updated:** 2026-11-12
 **Final project deadline:** Monday, November 16, 2026
 
-## Implemented
+## Implemented before final orchestration
 
-- **Phase 1:** synthetic fixture generation, Pydantic validation, PostgreSQL loading, quarantine, duplicate/collision handling, deterministic ETA reconciliation, query CLI, golden output, and replay tests.
-- **Phase 2:** one supported real-data route, scripts/ingest_portnet, for Digitraffic Portnet V1. It validates and quarantines records, stores ETA revisions in dedicated tables, and reports pipeline-health metrics.
-- **Database:** migrations 001–007 are retained; migration 007 adds Portnet tables.
-- **Verification evidence:** Phase 1 acceptance tests, Portnet tests, PostgreSQL integration tests, and injected reliability tests are in the test suite.
+- **Phase 1:** deterministic synthetic JSONL fixtures, Pydantic validation, PostgreSQL persistence, quarantine, duplicate/collision handling, trusted ETA reconciliation, query CLI, and golden acceptance tests.
+- **Phase 2:** supported Digitraffic Portnet V1 ingestion via `scripts.ingest_portnet`, Pydantic validation, PostgreSQL observations, rejected-record quarantine, duplicate/collision tracking, and integration/reliability tests.
+- **Phase 3:** dbt staging, latest-ETA, and pipeline-quality models with source declarations and schema/custom SQL tests. PR #15 was merged to `main` at commit `3fa4d01`.
+- **Final orchestration work:** branch `feat/airflow-final-pipeline` was created from `origin/main` at `3fa4d01`. Apache Airflow 2.10.5 runs the single three-task DAG `portpulse_daily_pipeline`. Verified locally: Ruff passed; all 34 Python tests passed against disposable PostgreSQL; dbt parse/debug passed and full build passed all 12 operations (9 data tests); Airflow metadata migration and DAG import/list checks passed; the end-to-end Airflow test completed all tasks successfully against a real Portnet V1 poll and dbt marts. Detailed dated evidence is in [the live pipeline report](reports/portpulse_live_pipeline_2026-11-12.md). Commit and PR are not yet complete.
 
-## Data evidence
+## Data evidence and limits
 
-- The November 9 report is the earlier Portnet/AIS experiment; it is historical and does not describe the supported architecture.
-- The November 10 reports document separate Portnet-only live runs.
-- Injected failures are synthetic test cases and are not provider defects.
+The November 9 report describes an earlier Portnet/AIS experiment and is historical only. The November 10 reports describe separate Portnet-only live runs. Injected failures and CI rows are synthetic tests, not provider defects or fresh live observations. The November 12 report separates live API observations from deterministic CI fixtures and cumulative repeat-poll issue counts.
 
-## Known limits
+The current real Portnet path does not use the Phase 1 synthetic multi-source reconciler. API date eligibility and availability vary. Airflow standalone with SQLite metadata is intended for local learning and demonstration, not production operation.
 
-Live reports are point-in-time snapshots. Repeat-poll idempotency and collisions are verified with deterministic tests, but repeated behavior has not been verified across a sequence of live API polls. The project has no scheduler or dashboard. AIS and Digitraffic V2 are not supported ingestion paths.
-
-## Next
-
-The cleanup branch is prepared for review and remains unmerged. Complete the final review by the project deadline. dbt is the planned next integration after cleanup; it has not been added or configured. Old Gantt percentages and forecasts are not current completion measures.
+During a separate standalone UI startup check without the demo environment variables, Airflow ran the due schedule against the existing local application database and inserted 170 valid Portnet observations for 2026-11-11. Its dbt task failed authentication against the existing local profile. After correcting the environment, dbt build and the DAG verifier both passed against that database; the full three-task Airflow run had passed against the disposable database. See the dated report for the distinction.

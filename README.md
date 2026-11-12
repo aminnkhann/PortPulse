@@ -10,6 +10,10 @@ PortPulse is a small data engineering capstone that ingests port-call ETA update
 
 No Kafka, MQTT, AIS, other API provider, cloud deployment, or dashboard is part of the supported workflow. The old V2/AIS experiment remains historical only.
 
+## Deployment approach
+
+Airflow is installed and runs locally on Ubuntu. Docker Compose runs PostgreSQL only; it does not define Airflow containers or mounts. The Airflow process uses the same `.venv-airflow` that contains the ingestion dependencies and dbt. The DAG locates the project from its own file, invokes ingestion with Airflow's `sys.executable`, and invokes dbt from the sibling executable in that same virtual environment. Both tasks inherit the Airflow process environment: `DATABASE_URL` configures ingestion and verification, while matching `DBT_*` values configure dbt. Use `127.0.0.1:5432` for PostgreSQL from local Airflow. Airflow metadata stays in SQLite under `.airflow/`; it is separate from PortPulse data.
+
 ## Local prerequisites and installation
 
 Use Ubuntu with Python 3.12, Docker Compose, and a working local PostgreSQL Docker service. From the repository root:
@@ -59,7 +63,7 @@ Replace the local development password with the value configured for your databa
 
 ## Run the Airflow pipeline
 
-The local development setup pins Apache Airflow 2.10.5. Its [official quick start](https://airflow.apache.org/docs/apache-airflow/2.10.5/start.html) supports Python 3.12 and recommends pip with the versioned constraints file. Install Airflow with those constraints, then install the project/dbt requirements while repeating the Airflow pin to prevent accidental upgrade or downgrade.
+The local setup pins Apache Airflow 2.10.5. Its [official quick start](https://airflow.apache.org/docs/apache-airflow/2.10.5/start.html) supports Python 3.12 and recommends pip with the versioned constraints file. Install Airflow with those constraints, then install the project/dbt requirements while repeating the Airflow pin to prevent accidental upgrade or downgrade.
 
 ~~~sh
 python3.12 -m venv .venv-airflow
@@ -80,6 +84,8 @@ airflow standalone
 ~~~
 
 This runs Airflow locally with a separate SQLite metadata database; the PortPulse application still uses the existing PostgreSQL service. Open [http://localhost:8080](http://localhost:8080) and use the admin credentials printed by `airflow standalone`. The `.airflow/` directory is ignored by Git. Keep the local-only credentials private.
+
+The DAG tasks execute in this same virtual environment and inherit these PostgreSQL credentials. Set the matching database and dbt environment values before starting Airflow: standalone starts the scheduler, which may immediately pick up a due scheduled run.
 
 The DAG ID is `portpulse_daily_pipeline`. It runs daily at 06:00 UTC, with catch-up disabled and at most one active run. Its tasks run sequentially: `ingest_portnet` → `build_dbt_analytics` → `verify_pipeline`. To trigger from another terminal, use the same Airflow environment and repository root:
 

@@ -39,6 +39,10 @@ The successful Airflow CLI run marked `ingest_portnet`, `build_dbt_analytics`, `
 
 Airflow standalone initialized its metadata database and logged Gunicorn listening on `0.0.0.0:8080`. An HTTP probe from this restricted execution environment could not reach the local listener, so browser access itself remains to be confirmed on the user's Ubuntu session.
 
+## Deployment verification after pinning dbt to the Airflow environment
+
+The DAG's dbt subprocess now resolves the sibling executable beside Airflow's `sys.executable`, so it uses the same local virtual environment even if the scheduler's `PATH` does not include that environment. After this change, the complete DAG was run again against the preserved disposable PostgreSQL database with the documented database and `DBT_*` values. All three tasks and the DAG run succeeded. The live poll returned 321 call records: 174 valid observations, of which 173 were unchanged and one new observation was inserted; there were no rejections or API collision groups. Verification passed with 179 accepted/staging rows (175 live plus 4 deterministic fixtures), 0 rejected, 520 accumulated duplicate issue rows, 1 fixture collision, and 177 latest mart rows.
+
 ## Separate scheduled startup run against the existing local database
 
 While checking standalone startup, its scheduler immediately picked up a due scheduled interval. That startup was intentionally not configured with the isolated test database environment. Its ingestion task called Portnet V1 for UTC date `2026-11-11` and inserted 170 valid live observations into the existing local PostgreSQL database on port 5432. A read-only query confirmed 170 observations with `ingested_at_utc` at or after 22:03 UTC. No rows were deleted. The following dbt task failed authentication against the pre-existing local profile, and the Airflow process was stopped before the retry; this startup run did not complete dbt or verification. The fully successful three-task run above was on the disposable port 5433 database.

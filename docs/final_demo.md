@@ -1,6 +1,6 @@
 # PortPulse final demo (5–7 minutes)
 
-Run commands from the repository root unless a `cd` is shown. This walkthrough uses the local Compose PostgreSQL service and real Portnet V1 API. API availability and records for the selected UTC date can vary; an empty valid poll is acceptable.
+Run commands from the repository root unless a `cd` is shown. **Deployment: Apache Airflow is installed and runs locally; Docker Compose runs PostgreSQL only.** Airflow is not containerized. Its SQLite metadata is stored separately under `.airflow/`; the DAG, ingestion CLI, and dbt execute from the same `.venv-airflow` environment. The host Airflow process connects to Compose PostgreSQL at `127.0.0.1:5432`. API availability and records for the selected UTC date can vary; an empty valid poll is acceptable.
 
 ## 1. Start PostgreSQL and Airflow
 
@@ -23,7 +23,9 @@ export DBT_PASSWORD=portpulse_local_only DBT_DATABASE=portpulse DBT_SCHEMA=analy
 airflow standalone
 ~~~
 
-Open <http://localhost:8080>. Use the admin credentials printed by `airflow standalone` (local only). Explain that Airflow metadata is local SQLite and application data remains in the existing PostgreSQL database.
+The ingestion task uses the active environment's Python executable and project-root working directory. The dbt task calls the sibling `dbt` executable in that same virtual environment and runs from `dbt/`. Both inherit the configured environment; `DATABASE_URL` and the matching `DBT_*` settings must point to the same PostgreSQL database. Set them before starting standalone because its scheduler may immediately pick up a due run.
+
+Open <http://localhost:8080>. Use the admin credentials printed by `airflow standalone` (local only). Airflow metadata is local SQLite; application data stays in the Compose PostgreSQL database.
 
 ## 2. Trigger and inspect the DAG
 

@@ -2,9 +2,11 @@
 
 import os
 import subprocess
+import sys
 import unittest
 import uuid
 from datetime import datetime, timezone
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -94,7 +96,11 @@ class AirflowDagTests(unittest.TestCase):
         with self.assertRaises(subprocess.CalledProcessError):
             build_dbt_analytics()
 
-        self.assertEqual(run_command.call_args.args[0], ["dbt", "build"])
+        self.assertEqual(
+            run_command.call_args.args[0],
+            [str(Path(sys.executable).with_name("dbt")), "build"],
+        )
+        self.assertEqual(run_command.call_args.kwargs["cwd"], PROJECT_ROOT / "dbt")
         self.assertTrue(run_command.call_args.kwargs["check"])
 
 

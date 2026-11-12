@@ -71,7 +71,7 @@ def ingest_portnet() -> None:
 def build_dbt_analytics() -> None:
     LOGGER.info("Building PortPulse dbt models and running dbt tests")
     subprocess.run(
-        ["dbt", "build"],
+        [str(Path(sys.executable).with_name("dbt")), "build"],
         cwd=PROJECT_ROOT / "dbt",
         env=os.environ.copy(),
         check=True,

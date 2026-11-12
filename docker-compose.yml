@@ -4,7 +4,7 @@ services:
     environment:
       POSTGRES_DB: portpulse
       POSTGRES_USER: portpulse
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-portpulse_local_only}
+      POSTGRES_PASSWORD: admin
     ports:
       - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:
@@ -16,5 +16,29 @@ services:
       timeout: 3s
       retries: 10
 
+  airflow:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    command: ["bash", "/opt/portpulse/docker/start-airflow.sh"]
+    environment:
+      AIRFLOW_HOME: /opt/airflow
+      AIRFLOW__CORE__DAGS_FOLDER: /opt/portpulse/dags
+      AIRFLOW__CORE__LOAD_EXAMPLES: "False"
+      DATABASE_URL: postgresql://portpulse:admin@db:5432/portpulse
+      DBT_HOST: db
+      DBT_PORT: "5432"
+      DBT_USER: portpulse
+      DBT_PASSWORD: admin
+      DBT_DATABASE: portpulse
+      DBT_SCHEMA: analytics
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - airflow_data:/opt/airflow
+    restart: unless-stopped
+
 volumes:
   postgres_data:
+  airflow_data:

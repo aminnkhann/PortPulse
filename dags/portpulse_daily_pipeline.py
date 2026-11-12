@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+import shutil
 import subprocess
 import sys
 from datetime import date, timedelta, timezone
@@ -70,8 +71,11 @@ def ingest_portnet() -> None:
 
 def build_dbt_analytics() -> None:
     LOGGER.info("Building PortPulse dbt models and running dbt tests")
+    dbt_executable = shutil.which("dbt")
+    if dbt_executable is None:
+        raise RuntimeError("dbt executable is not available on the Airflow PATH")
     subprocess.run(
-        [str(Path(sys.executable).with_name("dbt")), "build"],
+        [dbt_executable, "build"],
         cwd=PROJECT_ROOT / "dbt",
         env=os.environ.copy(),
         check=True,

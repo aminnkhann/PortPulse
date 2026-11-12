@@ -45,11 +45,10 @@ These tables are independent of the Phase 1 raw_event and trusted-state tables. 
 
 ## dbt analytics
 
-Run dbt from the `dbt/` directory. The project creates its staging view and analytics tables in the schema configured by the dbt profile. The models use these source columns:
+Run dbt inside the Compose Airflow service. The project creates its staging view and analytics tables in the schema configured by the container's profile. The models use these source columns:
 
 ```sh
-cd dbt
-dbt build
+docker compose exec airflow dbt build --project-dir /opt/portpulse/dbt
 ```
 
 - Observations: event_id, port_call_id, port_area_code, event_time_utc, received_at_utc, ingested_at_utc, eta_utc, canonical_payload_sha256, and selected fields in raw_payload.

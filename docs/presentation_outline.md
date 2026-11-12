@@ -11,7 +11,7 @@ Target length: 5–7 minutes. Replace the team placeholders with verified detail
 5. **PostgreSQL and dbt** — dedicated Portnet tables, staging model, latest-ETA mart, and pipeline-quality mart; explain that collisions are excluded from trusted latest ETA.
 6. **Airflow orchestration** — show the three sequential tasks, UTC schedule/manual run, retries, task logs, and fail-fast behavior.
 7. **Data-quality tests and results** — show verified Python/Ruff/dbt/Airflow results and distinguish deterministic CI fixtures from observations retrieved live. Fill in metrics only from the dated execution report.
-8. **Limitations and next steps** — local standalone Airflow/SQLite metadata, API availability and date eligibility, no production deployment/dashboard, and real Portnet data kept separate from synthetic trusted-ETA reconciliation.
+8. **Limitations and next steps** — local Docker Compose Airflow with SQLite metadata and demo credentials, API availability and date eligibility, no production deployment/dashboard, and real Portnet data kept separate from synthetic trusted-ETA reconciliation.
 
 ## Team-specific details to fill in
 

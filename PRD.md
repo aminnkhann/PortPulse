@@ -46,7 +46,7 @@ Focused deterministic failure injections are test inputs, not observed Portnet d
 
 ## Phase 3 — dbt analytics and Airflow orchestration
 
-dbt stages the Portnet observations and builds a latest-ETA mart and a pipeline-quality mart. Its schema and SQL data tests cover required fields, latest-row selection, collision exclusion, and uniqueness. Airflow's `portpulse_daily_pipeline` DAG executes the existing ingestion CLI, `dbt build`, and source/mart/metric verification sequentially. The local standalone Airflow setup uses SQLite only for orchestration metadata; PostgreSQL remains the business-data store.
+dbt stages the Portnet observations and builds a latest-ETA mart and a pipeline-quality mart. Its schema and SQL data tests cover required fields, latest-row selection, collision exclusion, and uniqueness. Airflow's `portpulse_daily_pipeline` DAG executes the existing ingestion CLI, `dbt build`, and source/mart/metric verification sequentially. The local Docker Compose Airflow setup uses a separate SQLite volume only for orchestration metadata; PostgreSQL remains the business-data store.
 
 The Portnet marts report one latest eligible ETA per port call and area, excluding collided event IDs. They do not represent reconciliation through the Phase 1 synthetic three-source rules.
 

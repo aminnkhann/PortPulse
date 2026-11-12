@@ -259,7 +259,7 @@ with DAG(
     start_date=pendulum.datetime(2026, 1, 1, tz="UTC"),
     catchup=False,
     max_active_runs=1,
-    is_paused_upon_creation=False,
+    is_paused_upon_creation=True,
     default_args={
         "owner": "portpulse",
         "retries": 2,

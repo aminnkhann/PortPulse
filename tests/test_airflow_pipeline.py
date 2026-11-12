@@ -53,6 +53,7 @@ class AirflowDagTests(unittest.TestCase):
         self.assertEqual(dag.dag_id, DAG_ID)
         self.assertFalse(dag.catchup)
         self.assertEqual(dag.max_active_runs, 1)
+        self.assertTrue(dag.is_paused_upon_creation)
 
     @patch("dags.portpulse_daily_pipeline.subprocess.run")
     @patch("dags.portpulse_daily_pipeline.get_current_context")

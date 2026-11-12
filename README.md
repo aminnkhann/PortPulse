@@ -85,7 +85,7 @@ airflow standalone
 
 This runs Airflow locally with a separate SQLite metadata database; the PortPulse application still uses the existing PostgreSQL service. Open [http://localhost:8080](http://localhost:8080) and use the admin credentials printed by `airflow standalone`. The `.airflow/` directory is ignored by Git. Keep the local-only credentials private.
 
-The DAG tasks execute in this same virtual environment and inherit these PostgreSQL credentials. Set the matching database and dbt environment values before starting Airflow: standalone starts the scheduler, which may immediately pick up a due scheduled run.
+The DAG tasks execute in this same virtual environment and inherit these PostgreSQL credentials. Set the matching database and dbt environment values before starting Airflow. The DAG is paused when first created, so the scheduler will not begin live ingestion until you explicitly unpause it. If this DAG already exists in local Airflow metadata, pause it before startup with `airflow dags pause portpulse_daily_pipeline`; Airflow preserves the existing pause state.
 
 The DAG ID is `portpulse_daily_pipeline`. It runs daily at 06:00 UTC, with catch-up disabled and at most one active run. Its tasks run sequentially: `ingest_portnet` → `build_dbt_analytics` → `verify_pipeline`. To trigger from another terminal, use the same Airflow environment and repository root:
 
@@ -99,7 +99,7 @@ airflow dags list-runs -d portpulse_daily_pipeline
 
 Omit `--conf` to use the run's logical date converted to UTC. The UI Graph view and each task's Logs tab show the execution order, command output, dbt tests, and final health summary.
 
-To trigger in the UI, open the DAG, select **Trigger DAG**, and optionally enter `{"run_date":"2026-11-12"}` as the JSON configuration before confirming.
+To enable its daily schedule, run `airflow dags unpause portpulse_daily_pipeline` (or toggle the pause control in the UI). To run it once while keeping the schedule paused, use the CLI `airflow dags trigger --conf '{"run_date":"2026-11-12"}' portpulse_daily_pipeline`, or open the DAG in the UI, select **Trigger DAG**, and optionally enter `{"run_date":"2026-11-12"}`. Manual triggers are allowed while a DAG is paused.
 
 ## Query analytics outputs
 
@@ -107,7 +107,7 @@ Run these from the repository root after `dbt build`:
 
 ~~~sh
 docker compose exec -T db psql -U portpulse -d portpulse -c 'SELECT * FROM analytics.stg_portnet_eta LIMIT 5;'
-docker compose exec -T db psql -U portpulse -d portpulse -c 'SELECT port_call_id, port_area_code, event_id, event_time_utc, eta_utc FROM analytics.mart_portnet_latest_eta ORDER BY port_call_id, port_area_code;'
+docker compose exec -T db psql -U portpulse -d portpulse -c 'SELECT port_call_id, port_area_code, event_id, provider_updated_at_utc, eta_utc FROM analytics.mart_portnet_latest_eta ORDER BY port_call_id, port_area_code;'
 docker compose exec -T db psql -U portpulse -d portpulse -c 'SELECT * FROM analytics.mart_pipeline_quality;'
 ~~~
 

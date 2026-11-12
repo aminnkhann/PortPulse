@@ -29,11 +29,12 @@ jobs:
       DBT_PASSWORD: portpulse_test
       DBT_DATABASE: portpulse_test
       DBT_SCHEMA: analytics
-      AIRFLOW_HOME: ${{ runner.temp }}/portpulse-airflow
       AIRFLOW__CORE__DAGS_FOLDER: ${{ github.workspace }}/dags
       AIRFLOW__CORE__LOAD_EXAMPLES: "False"
     steps:
       - uses: actions/checkout@v4
+      - name: Configure temporary Airflow home
+        run: echo "AIRFLOW_HOME=$RUNNER_TEMP/portpulse-airflow" >> "$GITHUB_ENV"
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"

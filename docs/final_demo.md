@@ -23,7 +23,7 @@ export DBT_PASSWORD=portpulse_local_only DBT_DATABASE=portpulse DBT_SCHEMA=analy
 airflow standalone
 ~~~
 
-The ingestion task uses the active environment's Python executable and project-root working directory. The dbt task calls the sibling `dbt` executable in that same virtual environment and runs from `dbt/`. Both inherit the configured environment; `DATABASE_URL` and the matching `DBT_*` settings must point to the same PostgreSQL database. Set them before starting standalone because its scheduler may immediately pick up a due run.
+The ingestion task uses the active environment's Python executable and project-root working directory. The dbt task calls the sibling `dbt` executable in that same virtual environment and runs from `dbt/`. Both inherit the configured environment; `DATABASE_URL` and the matching `DBT_*` settings must point to the same PostgreSQL database. The DAG is paused upon first creation. If it already exists in your local Airflow metadata, pause it before starting standalone with `airflow dags pause portpulse_daily_pipeline`; existing pause state is retained.
 
 Open <http://localhost:8080>. Use the admin credentials printed by `airflow standalone` (local only). Airflow metadata is local SQLite; application data stays in the Compose PostgreSQL database.
 
@@ -39,6 +39,8 @@ airflow dags trigger --conf '{"run_date":"2026-11-12"}' portpulse_daily_pipeline
 airflow dags list-runs -d portpulse_daily_pipeline
 ~~~
 
+The manual trigger works while the DAG is paused and leaves its daily schedule disabled. To enable the 06:00 UTC schedule, run `airflow dags unpause portpulse_daily_pipeline` or toggle the pause control in the UI. Avoid unpausing until database credentials are configured.
+
 In the UI, open `portpulse_daily_pipeline`, show the Graph view and then task logs for `ingest_portnet`, `build_dbt_analytics`, and `verify_pipeline`. Ingestion calls the existing CLI; dbt builds the models and runs tests; verification logs counts and checks consistency. A failed command fails its task and the DAG retries it.
 
 ## 3. Show stored API observations
@@ -53,7 +55,7 @@ These are cumulative stored rows, not the number fetched by this run. The task l
 ## 4. Show analytics and quality
 
 ~~~sh
-docker compose exec -T db psql -U portpulse -d portpulse -c 'SELECT port_call_id, port_area_code, event_id, event_time_utc, eta_utc FROM analytics.mart_portnet_latest_eta ORDER BY port_call_id, port_area_code LIMIT 10;'
+docker compose exec -T db psql -U portpulse -d portpulse -c 'SELECT port_call_id, port_area_code, event_id, provider_updated_at_utc, eta_utc FROM analytics.mart_portnet_latest_eta ORDER BY port_call_id, port_area_code LIMIT 10;'
 docker compose exec -T db psql -U portpulse -d portpulse -c 'SELECT * FROM analytics.mart_pipeline_quality;'
 ~~~
 

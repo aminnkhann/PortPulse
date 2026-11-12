@@ -1,48 +1,53 @@
 # PortPulse Architecture
 
-## Supported workflows
+PortPulse demonstrates two related but separate data workflows: deterministic synthetic ETA reconciliation (Phase 1) and real single-source Portnet V1 ingestion with analytics (Phases 2–3). Airflow orchestrates the latter; it is not an additional storage or processing layer.
 
-### Phase 1: deterministic synthetic reconciliation
-
-~~~mermaid
-flowchart LR
-    F[JSONL fixture] --> V[Pydantic validation]
-    V -->|valid| R[(raw_event)]
-    V -->|invalid| Q[(rejected_event)]
-    R --> D[Deduplication and quality checks]
-    D --> T[Trusted ETA reconciliation]
-    T --> S[(port_call_state)]
-    R --> H[(quality_issue)]
-    S --> C[Query CLI]
-~~~
-
-The fixture, rules, and golden result are checked in. Replaying the same fixture produces the same trusted result.
-
-### Phase 2: single-source Portnet V1 ETL
+## End-to-end Portnet workflow
 
 ~~~mermaid
 flowchart LR
-    P[Digitraffic Portnet V1 API] --> I[scripts.ingest_portnet]
-    I --> V[Pydantic validation]
+    API[Digitraffic Portnet V1 API] --> A[scripts.ingest_portnet]
+    A --> V[Pydantic validation]
     V -->|accepted| O[(portnet_eta_observation)]
-    V -->|rejected| Q[(portnet_eta_rejected_event)]
-    O --> D[Duplicate and collision accounting]
-    D --> H[(portnet_eta_quality_issue)]
-    D --> M[Pipeline-health report]
+    V -->|rejected with reason| R[(portnet_eta_rejected_event)]
+    O --> Q[(portnet_eta_quality_issue)]
+    O --> S[dbt stg_portnet_eta]
+    R --> H[dbt mart_pipeline_quality]
+    Q --> H
+    S --> L[dbt mart_portnet_latest_eta]
+    S --> H
+    DAG[Airflow: ingest >> dbt build >> verify] --> A
+    DAG --> S
+    DAG --> H
 ~~~
 
-The Portnet adapter is independent of the Phase 1 reconciliation tables and does not call the historical V2/AIS adapters. It writes only to its dedicated observation, rejection, and quality-issue tables.
+Airflow task `ingest_portnet` calls the existing CLI for the UTC run date. `build_dbt_analytics` runs `dbt build`, which builds all three models and executes their tests. `verify_pipeline` checks the source tables, model relations, source-to-model counts, quality metrics, and uniqueness of the latest ETA per port call and area. A task failure fails the DAG run; Airflow retries transient task failures twice with a five-minute delay. Runs do not overlap and historical catch-up is disabled. The schedule is 06:00 UTC daily; users can trigger a run manually and supply an optional `run_date`.
 
-## Event identity and clocks
+## Validation, identity, and clocks
 
-For Portnet, identity is scoped by provider port-call ID and port-area code; etaTimestamp distinguishes ETA revisions. The event time is the provider's update timestamp. received_at_utc records API collection time, and PostgreSQL assigns ingested_at_utc. This lets the pipeline distinguish source change, collection, and storage times.
+The Portnet adapter validates provider data with Pydantic. Accepted observations, rejected records with reasons, and duplicate/collision quality issues are stored in dedicated PostgreSQL tables. Identity is scoped by provider port-call ID, area, and provider update timestamp. An ETA revision becomes a new observation; exact repeats and conflicting payloads do not silently change trusted records. Provider event time, API collection time, and database ingestion time are stored separately in UTC.
 
-Phase 1 uses its own synthetic event contract and fixed evaluation time. Its thresholds and source priorities are demonstrator assumptions.
+The adapter is independent of Phase 1 synthetic reconciliation. Real Portnet rows are not passed through the three-source trusted-ETA engine. Phase 1 retains its fixed synthetic fixture, legacy `raw_event` tables, and deterministic golden output.
 
-## PostgreSQL and migrations
+## PostgreSQL and dbt
 
-Migrations 001–007 are append-only project history. Migration 007 creates Portnet tables without changing Phase 1 tables. Migrations 004 and 006 seed source rows from older experiments; they remain so existing schemas and the Phase 1 source-parity check continue to work. The generic raw_event tables and their rows are not dropped. The reconciler retains visit-status handling for existing legacy payloads, but no old adapter creates new rows. The old adapters are no longer part of the supported repository workflow.
+Migrations 001–007 are retained and run in order on a fresh Compose database. Migration 007 adds the Portnet tables. Existing generic tables and legacy rows remain intact.
 
-## Future dbt layer
+dbt reads the Portnet source tables in `public` and builds:
 
-After cleanup, a dbt project can be added at repository root under dbt/. It can source the Portnet observation, rejection, and quality-issue tables and build staging, latest-ETA, and health models. No dbt code or dependency is present yet.
+- `analytics.stg_portnet_eta`: validated source projection.
+- `analytics.mart_portnet_latest_eta`: one latest eligible ETA per port call and area, excluding event-ID collisions.
+- `analytics.mart_pipeline_quality`: observation, rejection, duplicate, collision, and latest-row counts.
+
+dbt uses the same PostgreSQL application database as ingestion, with credentials supplied through environment variables. The Airflow metadata database is a separate local SQLite database stored under the ignored `.airflow/` directory.
+
+## Airflow local development
+
+The repository pins Apache Airflow 2.10.5 for Python 3.12. `airflow standalone` starts the local UI and scheduler with SQLite metadata. It is suitable for this local demonstration, not production deployment. See [README setup](README.md#run-the-airflow-pipeline) and the [final demo runbook](docs/final_demo.md).
+
+## Current limitations
+
+- Portnet API availability and date eligibility are external; an empty valid poll is healthy.
+- Airflow's local SQLite metadata and standalone services are for development and demonstration only.
+- The quality mart describes this Portnet ingestion path, not the separate synthetic Phase 1 reconciler.
+- The project does not include a dashboard, cloud deployment, or additional providers.

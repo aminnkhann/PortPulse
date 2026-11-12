@@ -4,6 +4,7 @@ __pycache__/
 *.egg-info/
 .venv/
 .venv-dbt/
+.venv-airflow/
 venv/
 env/
 build/
@@ -22,6 +23,8 @@ htmlcov/
 .ruff_cache/
 dbt/target/
 dbt/logs/
+.airflow/
+.dbt-profile/
 
 # Local databases and logs
 *.sqlite

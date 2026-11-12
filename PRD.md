@@ -1,6 +1,6 @@
 # PortPulse Product Requirements
 
-**Status:** Implemented Phase 1 and Phase 2 scope
+**Status:** Phase 1–3 implemented; final Airflow orchestration verified on the feature branch
 **Final project deadline:** Monday, November 16, 2026
 
 ## Purpose
@@ -44,9 +44,15 @@ Required behavior:
 
 Focused deterministic failure injections are test inputs, not observed Portnet defects. Real API run reports are kept separately from those injected tests.
 
+## Phase 3 — dbt analytics and Airflow orchestration
+
+dbt stages the Portnet observations and builds a latest-ETA mart and a pipeline-quality mart. Its schema and SQL data tests cover required fields, latest-row selection, collision exclusion, and uniqueness. Airflow's `portpulse_daily_pipeline` DAG executes the existing ingestion CLI, `dbt build`, and source/mart/metric verification sequentially. The local standalone Airflow setup uses SQLite only for orchestration metadata; PostgreSQL remains the business-data store.
+
+The Portnet marts report one latest eligible ETA per port call and area, excluding collided event IDs. They do not represent reconciliation through the Phase 1 synthetic three-source rules.
+
 ## Out of scope
 
-AIS comparison, Digitraffic V2 ingestion, MQTT, Kafka, FastAPI, dashboards, cloud infrastructure, scheduling, and dbt are not part of the current implementation. dbt is a planned next step after repository cleanup and is not included in this project change.
+AIS comparison, Digitraffic V2 ingestion, MQTT, Kafka, FastAPI, dashboards, and cloud infrastructure remain out of scope. Airflow is a local learning/demo orchestrator; the project does not claim production-scale scheduling or deployment.
 
 ## Data and compatibility
 

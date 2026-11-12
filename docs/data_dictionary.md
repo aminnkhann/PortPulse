@@ -41,17 +41,22 @@ The stable event ID combines the port-call ID, area code (or unspecified where u
 | portnet_eta_rejected_event | Rejected input with reason code, selected safe payload, details, and rejection time. |
 | portnet_eta_quality_issue | EXACT_DUPLICATE and ID_COLLISION records with observation identity and details. |
 
-These tables are independent of the Phase 1 raw_event and trusted-state tables. They are the stable source tables proposed for future dbt staging and quality summaries.
+These tables are independent of the Phase 1 raw_event and trusted-state tables. The dbt project reads them as sources for staging, latest-ETA, and pipeline-quality models.
 
-## dbt starting point (planned, not implemented)
+## dbt analytics
 
-Keep a future dbt project in a root-level dbt/ directory. Useful source columns are:
+Run dbt from the `dbt/` directory. The project creates its staging view and analytics tables in the schema configured by the dbt profile. The models use these source columns:
+
+```sh
+cd dbt
+dbt build
+```
 
 - Observations: event_id, port_call_id, port_area_code, event_time_utc, received_at_utc, ingested_at_utc, eta_utc, canonical_payload_sha256, and selected fields in raw_payload.
 - Quarantine: reason_code, received_at_utc, rejected_at_utc, and details from portnet_eta_rejected_event.
 - Quality issues: issue_code, event_id, port_call_id, received_at_utc, and details from portnet_eta_quality_issue.
 
-A latest-ETA model should partition by port_call_id and port_area_code, exclude every event_id with an ID_COLLISION issue, and rank eligible observations by event_time_utc descending, then ingested_at_utc and event_id as deterministic tie-breakers. Quality summaries can aggregate rejected rows by reason_code and quality issues by issue_code.
+A latest-ETA model partitions by port_call_id and port_area_code, excludes every event_id with an ID_COLLISION issue, and ranks eligible observations by provider update time, collection time, ingestion time, and observation ID. A pipeline-quality model aggregates accepted observations, rejected records, duplicate and collision issues, and the current latest-ETA row count.
 
 The CLI reports per-poll totals such as calls received, completed calls skipped, and rows inserted, but those run-level counters are not persisted in a run ledger. Database models can summarize stored observations, rejections, and issues; full per-run trend reporting would need a persisted run table in a future approved scope.
 

@@ -1,0 +1,29 @@
+
+version: 2
+
+models:
+  - name: stg_portnet_eta
+    columns:
+      - name: observation_id
+        data_tests:
+          - unique
+          - not_null
+
+      - name: event_id
+        data_tests:
+          - not_null
+
+      - name: eta_utc
+        data_tests:
+          - not_null
+
+  - name: mart_portnet_latest_eta
+    columns:
+      - name: event_id
+        data_tests:
+          - unique
+          - not_null
+
+      - name: eta_utc
+        data_tests:
+          - not_null

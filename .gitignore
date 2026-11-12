@@ -3,6 +3,7 @@ __pycache__/
 *.py[cod]
 *.egg-info/
 .venv/
+.venv-dbt/
 venv/
 env/
 build/
@@ -19,6 +20,8 @@ dist/
 htmlcov/
 .mypy_cache/
 .ruff_cache/
+dbt/target/
+dbt/logs/
 
 # Local databases and logs
 *.sqlite

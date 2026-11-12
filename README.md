@@ -7,7 +7,7 @@ PortPulse is a local data engineering project that demonstrates deterministic ET
 - **Phase 1:** process a fixed synthetic port-call fixture, validate and quarantine records, detect duplicates and ID collisions, reconcile a trusted ETA, and query its history.
 - **Phase 2:** fetch Digitraffic Portnet V1 observations, validate them with Pydantic, store accepted and rejected observations in PostgreSQL, and report pipeline-health metrics.
 
-The supported live ingestion command is python -m scripts.ingest_portnet. Digitraffic V2 and AIS ingestion are not included in the supported workflow. Their old migrations and the November 9 comparison report remain as history. Existing generic raw_event rows are not dropped. Kafka, FastAPI, cloud services, and dbt are not implemented.
+The supported live ingestion command is python -m scripts.ingest_portnet. Digitraffic V2 and AIS ingestion are not included in the supported workflow. Their old migrations and the November 9 comparison report remain as history. Existing generic raw_event rows are not dropped. Kafka, FastAPI, and cloud services are not implemented. The dbt project in dbt/ provides Portnet staging and analytics models.
 
 ## Run Phase 1 locally
 

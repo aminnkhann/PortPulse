@@ -73,6 +73,9 @@ models:
       - name: cdc_operation
         data_tests:
           - not_null
+          - accepted_values:
+              arguments:
+                values: ['c', 'u', 'r']
       - name: eta_utc
         data_tests:
           - not_null

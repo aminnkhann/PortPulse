@@ -2,11 +2,9 @@
 
 import os
 import subprocess
-import sys
 import unittest
 import uuid
 from datetime import datetime, timezone
-from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -91,18 +89,27 @@ class AirflowDagTests(unittest.TestCase):
         self.assertEqual(run_command.call_args.args[0][-1], "2026-11-11")
 
     @patch("dags.portpulse_daily_pipeline.subprocess.run")
-    def test_dbt_failure_propagates(self, run_command):
+    @patch(
+        "dags.portpulse_daily_pipeline.shutil.which",
+        return_value="/airflow/bin/dbt",
+    )
+    def test_dbt_failure_propagates(self, find_dbt, run_command):
         run_command.side_effect = subprocess.CalledProcessError(1, "dbt")
 
         with self.assertRaises(subprocess.CalledProcessError):
             build_dbt_analytics()
 
-        self.assertEqual(
-            run_command.call_args.args[0],
-            [str(Path(sys.executable).with_name("dbt")), "build"],
-        )
+        self.assertEqual(run_command.call_args.args[0], ["/airflow/bin/dbt", "build"])
         self.assertEqual(run_command.call_args.kwargs["cwd"], PROJECT_ROOT / "dbt")
         self.assertTrue(run_command.call_args.kwargs["check"])
+        find_dbt.assert_called_once_with("dbt")
+
+    @patch("dags.portpulse_daily_pipeline.shutil.which", return_value=None)
+    def test_dbt_missing_from_path_fails_clearly(self, find_dbt):
+        with self.assertRaisesRegex(RuntimeError, "dbt executable is not available"):
+            build_dbt_analytics()
+
+        find_dbt.assert_called_once_with("dbt")
 
 
 class PipelineVerificationTests(unittest.TestCase):

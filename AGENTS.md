@@ -34,6 +34,8 @@ Keep these two repositories in sync:
 - Course repository: https://github.com/dci-fbw-dataeng-python-25-a/amin-final-project
 - Personal repository: https://github.com/aminnkhann/portpulse
 
-For every project change, however small, apply the same file changes to both repositories in the same work session. Push matching branches with the same branch name, commit message, PR title, and PR description. Open a PR in both repositories and coordinate their checks and merges; do not merge one side while the other side is unresolved. After merging, compare the `main` file trees.
+For implementation changes, apply the same source, tests, migrations, fixtures, runtime configuration, dependency files, and README changes to both repositories in the same work session. Use matching branch names, commit messages, and PR titles; link corresponding PRs and keep them open until both checks pass. Never merge one side while the other side is unresolved.
+
+These repository-specific files do not need to be mirrored: `PRD.md`, `.github/workflows/` (CI), `progress.md`, and `docs/`. Keep them accurate in the repository being changed when useful. If an implementation or dependency change requires a CI adjustment for the checks to run, make the required adjustment in both repositories. After merging, compare implementation files rather than requiring documentation and CI file trees to match.
 
 The repositories have separate Git histories, so their commit hashes and PR numbers will differ. If either repository is inaccessible or its PR cannot be made ready, stop before merging either side and report what remains.

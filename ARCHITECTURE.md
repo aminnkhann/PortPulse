@@ -39,15 +39,17 @@ dbt reads the Portnet source tables in `public` and builds:
 - `analytics.mart_portnet_latest_eta`: one latest eligible ETA per port call and area, excluding event-ID collisions.
 - `analytics.mart_pipeline_quality`: observation, rejection, duplicate, collision, and latest-row counts.
 
-dbt uses the same PostgreSQL application database as ingestion, with credentials supplied through environment variables. The Airflow metadata database is a separate local SQLite database stored under the ignored `.airflow/` directory.
+dbt uses the same PostgreSQL application database as ingestion, with credentials supplied through the Compose environment. Airflow metadata uses SQLite in the separate `airflow_data` Compose volume.
 
-## Airflow local development
+## Local Docker Compose deployment
 
-The repository pins Apache Airflow 2.10.5 for Python 3.12. `airflow standalone` starts the local UI and scheduler with SQLite metadata. It is suitable for this local demonstration, not production deployment. See [README setup](README.md#run-the-airflow-pipeline) and the [final demo runbook](docs/final_demo.md).
+The repository builds a small image from Apache Airflow 2.10.5 and Python 3.12, then installs the PortPulse and dbt requirements. One `airflow` Compose service runs `airflow standalone`, which supplies the local UI and scheduler. A startup script initializes Airflow metadata and sets the demo UI login to `admin` / `admin`. The DAG is paused when first created.
+
+The Airflow container reaches PostgreSQL at hostname `db`; it does not use `localhost` for inter-container traffic. PostgreSQL migrations 001–007 run automatically on a fresh `postgres_data` volume. The named `postgres_data` volume stores PortPulse rows, and the separate `airflow_data` volume stores orchestration metadata. Run `docker compose up --build -d` from the repository root to start the demo. This setup is for local learning, not production deployment. See [README setup](README.md#local-prerequisites-and-installation) and the [final demo runbook](docs/final_demo.md).
 
 ## Current limitations
 
 - Portnet API availability and date eligibility are external; an empty valid poll is healthy.
-- Airflow's local SQLite metadata and standalone services are for development and demonstration only.
+- Airflow's SQLite metadata and `admin` / `admin` demo login are for local development only.
 - The quality mart describes this Portnet ingestion path, not the separate synthetic Phase 1 reconciler.
 - The project does not include a dashboard, cloud deployment, or additional providers.

@@ -31,6 +31,26 @@ The synthetic JSONL fixture is validated and reconciled across three simulated s
 
 Portnet reliability tests use deterministic API-shaped responses, including revisions, duplicates, collisions, invalid records, and missing ETAs. They mock the API, replay data in a disposable PostgreSQL database, and run the normal dbt models; the production Airflow DAG continues to ingest only real Portnet data.
 
+## Optional simulated CDC workflow
+
+```mermaid
+flowchart LR
+    SIM[Fixed port traffic simulator] --> SRC[(stream_demo.port_eta_state)]
+    SRC --> WAL[PostgreSQL WAL, pgoutput]
+    WAL --> DBZ[Debezium PostgreSQL connector]
+    DBZ --> KAFKA[Kafka topic]
+    KAFKA --> AF[Bounded Airflow Kafka consumer]
+    AF --> HIST[(stream_demo.port_eta_cdc_event)]
+    HIST --> DBT[dbt streaming models]
+    DBT --> MART[(analytics.mart_stream_latest_eta)]
+```
+
+Kafka carries committed row changes as an ordered event stream; Debezium reads PostgreSQL's logical WAL through `pgoutput` and publishes those changes without a custom producer. Airflow uses the official Kafka consumer operator for bounded, scheduled micro-batches, then builds and verifies the dbt outputs. PostgreSQL event storage is idempotent by Kafka topic, partition, and offset, so a task retry after a database commit can safely replay messages. This is at-least-once processing, not end-to-end exactly-once delivery.
+
+All generated rows and CDC history stay in `stream_demo`; the real Portnet tables and production daily DAG remain separate. Existing three-source synthetic fixtures test reconciliation, while the Portnet API fixtures test ingestion reliability. The traffic simulator is a third test/demo input that creates database INSERT, UPDATE, and DELETE operations for Debezium to capture.
+
+The local broker uses a single KRaft node and has no host-published Kafka port. It is a demonstration, not a durable production cluster. Kafka ordering is guaranteed only within a partition; each simulated call key must continue mapping to one partition, and changing the topic's partition count can invalidate cross-version ordering assumptions. Pausing Debezium can retain WAL through its replication slot. DDL changes are not emitted as CDC events. See [the streaming guide](docs/streaming_cdc.md).
+
 ## Local deployment and limits
 
 Docker Compose starts PostgreSQL and an Airflow container built from the root Dockerfile. Python, Airflow, and dbt dependencies are installed in that image. The Airflow container connects to PostgreSQL by the Compose service name `db`. PostgreSQL application data and Airflow SQLite metadata use separate named volumes.

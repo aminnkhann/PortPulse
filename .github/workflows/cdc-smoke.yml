@@ -1,0 +1,36 @@
+name: PortPulse real CDC smoke test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  postgres-debezium-kafka-airflow-dbt:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Start disposable streaming stack
+        run: docker compose --profile streaming up --build -d
+      - name: Wait for services
+        run: |
+          for attempt in $(seq 1 90); do
+            if docker compose ps --format json | python -c 'import json,sys; raw=sys.stdin.read(); rows=json.loads(raw) if raw.lstrip().startswith("[") else [json.loads(line) for line in raw.splitlines() if line.strip()]; sys.exit(0 if len(rows) >= 4 and all(row.get("Health") == "healthy" for row in rows if row.get("Service") in {"db", "kafka", "kafka-connect"}) else 1)'; then
+              exit 0
+            fi
+            sleep 4
+          done
+          docker compose ps
+          docker compose logs --tail 100 db kafka kafka-connect
+          exit 1
+      - name: Register Debezium connector
+        run: python scripts/register_cdc_connector.py
+      - name: Write real PostgreSQL change operations
+        run: docker compose exec -T airflow python scripts/simulate_port_traffic.py --scenario-id cdc-smoke-2026-11-13 --delay-seconds 0
+      - name: Verify Kafka capture, Airflow ingestion, and dbt output
+        run: docker compose exec -T airflow python scripts/verify_cdc_smoke.py
+      - name: Stop disposable services and preserve named volumes
+        if: always()
+        run: docker compose down

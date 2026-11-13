@@ -15,6 +15,7 @@ COPY --chown=airflow:root dbt/profiles.example.yml /home/airflow/.dbt/profiles.y
 
 ENV AIRFLOW__CORE__DAGS_FOLDER=/opt/portpulse/dags \
     AIRFLOW__CORE__LOAD_EXAMPLES=False \
+    PYTHONPATH=/opt/portpulse \
     DBT_PROFILES_DIR=/home/airflow/.dbt
 
 WORKDIR /opt/portpulse

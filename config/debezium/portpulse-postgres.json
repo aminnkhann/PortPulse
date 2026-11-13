@@ -1,0 +1,24 @@
+{
+  "name": "portpulse-postgres-cdc",
+  "config": {
+    "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+    "tasks.max": "1",
+    "database.hostname": "db",
+    "database.port": "5432",
+    "database.user": "portpulse",
+    "database.password": "",
+    "database.dbname": "portpulse",
+    "topic.prefix": "portpulse_stream",
+    "plugin.name": "pgoutput",
+    "publication.name": "portpulse_stream_publication",
+    "publication.autocreate.mode": "disabled",
+    "slot.name": "portpulse_stream_slot",
+    "slot.drop.on.stop": "false",
+    "table.include.list": "stream_demo.port_eta_state",
+    "snapshot.mode": "no_data",
+    "key.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "key.converter.schemas.enable": "false",
+    "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "value.converter.schemas.enable": "false"
+  }
+}

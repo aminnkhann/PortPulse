@@ -8,3 +8,7 @@ sources:
       - name: portnet_eta_observation
       - name: portnet_eta_rejected_event
       - name: portnet_eta_quality_issue
+  - name: stream_demo
+    schema: stream_demo
+    tables:
+      - name: port_eta_cdc_event

@@ -16,7 +16,11 @@ from psycopg.types.json import Jsonb
 
 from scripts import ingest_fixture
 from scripts.event_model import MarineEtaEvent, PortnetEtaPayload
-from scripts.event_storage import existing_hashes, insert_quality_issue
+from scripts.event_storage import (
+    existing_hashes,
+    insert_quality_issue,
+    record_payload_hash,
+)
 
 
 PORTNET_URL = "https://meri.digitraffic.fi/api/port-call/v1/port-calls"
@@ -314,8 +318,10 @@ def store_observations(events, rejected, database_url, grouped_events=None):
 
             for event, _ in unique_events:
                 payload_hash = ingest_fixture.canonical_hash(event)
-                previous = existing[event["event_id"]]
-                if payload_hash in previous:
+                identity = record_payload_hash(
+                    existing, event["event_id"], payload_hash
+                )
+                if identity == "duplicate":
                     duplicate_count += 1
                     insert_quality_issue(
                         cursor,
@@ -327,8 +333,8 @@ def store_observations(events, rejected, database_url, grouped_events=None):
                         event,
                         {"payload_sha256": payload_hash},
                     )
-                elif previous:
-                    collisions[event["event_id"]] = sorted(previous | {payload_hash})
+                elif identity == "collision":
+                    collisions[event["event_id"]] = sorted(existing[event["event_id"]])
 
                 cursor.execute(
                     """INSERT INTO portnet_eta_observation
@@ -348,7 +354,6 @@ def store_observations(events, rejected, database_url, grouped_events=None):
                     ),
                 )
                 inserted_count += cursor.rowcount
-                previous.add(payload_hash)
 
             for event, payload_hash, _ in duplicate_attempts:
                 insert_quality_issue(

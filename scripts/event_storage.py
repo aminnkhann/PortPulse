@@ -21,6 +21,15 @@ def existing_hashes(cursor, table_name, event_ids):
     return hashes
 
 
+def record_payload_hash(existing, event_id, payload_hash):
+    hashes = existing[event_id]
+    if payload_hash in hashes:
+        return "duplicate"
+    result = "collision" if hashes else "new"
+    hashes.add(payload_hash)
+    return result
+
+
 def insert_quality_issue(
     cursor,
     table_name,

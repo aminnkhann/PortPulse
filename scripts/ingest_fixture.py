@@ -12,7 +12,11 @@ from pydantic import ValidationError
 from psycopg.types.json import Jsonb
 
 from scripts.event_model import PortCallEvent
-from scripts.event_storage import existing_hashes, insert_quality_issue
+from scripts.event_storage import (
+    existing_hashes,
+    insert_quality_issue,
+    record_payload_hash,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -203,8 +207,10 @@ def store_fixture(valid, rejected, record_existing_duplicates=False, database_ur
 
             for event, _ in unique_events:
                 payload_hash = canonical_hash(event)
-                prior = prior_hashes[event["event_id"]]
-                if record_existing_duplicates and payload_hash in prior:
+                identity = record_payload_hash(
+                    prior_hashes, event["event_id"], payload_hash
+                )
+                if record_existing_duplicates and identity == "duplicate":
                     existing_duplicate_count += 1
                     insert_issue(
                         cursor,
@@ -218,9 +224,10 @@ def store_fixture(valid, rejected, record_existing_duplicates=False, database_ur
                             "port_call_id": event["port_call_id"],
                         },
                     )
-                elif record_existing_duplicates and prior:
-                    collisions[event["event_id"]] = sorted(prior | {payload_hash})
-                prior.add(payload_hash)
+                elif record_existing_duplicates and identity == "collision":
+                    collisions[event["event_id"]] = sorted(
+                        prior_hashes[event["event_id"]]
+                    )
 
                 cursor.execute(
                     "INSERT INTO port_call (port_call_id) VALUES (%s) "

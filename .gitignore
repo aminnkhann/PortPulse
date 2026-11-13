@@ -41,3 +41,6 @@ dbt/logs/
 Formal engineering documents/
 PortPulse_01_Gantt_WBS.xlsx
 PortPulse_02_Task_Dictionary.xlsx
+
+# Personal presentation files stay outside the product repository
+/presentation/

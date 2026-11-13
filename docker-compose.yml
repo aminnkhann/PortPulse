@@ -5,7 +5,7 @@ services:
     environment:
       POSTGRES_DB: portpulse
       POSTGRES_USER: portpulse
-      POSTGRES_PASSWORD: admin
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-admin}
     ports:
       - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:
@@ -27,12 +27,15 @@ services:
       AIRFLOW_HOME: /opt/airflow
       AIRFLOW__CORE__DAGS_FOLDER: /opt/portpulse/dags
       AIRFLOW__CORE__LOAD_EXAMPLES: "False"
+      AIRFLOW_ADMIN_USERNAME: ${AIRFLOW_ADMIN_USERNAME:-admin}
+      AIRFLOW_ADMIN_PASSWORD: ${AIRFLOW_ADMIN_PASSWORD:-admin}
+      AIRFLOW_ADMIN_EMAIL: ${AIRFLOW_ADMIN_EMAIL:-admin@example.com}
       AIRFLOW__CORE__AUTH_MANAGER: airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager
-      DATABASE_URL: postgresql://portpulse:admin@db:5432/portpulse
+      DATABASE_URL: postgresql://portpulse:${POSTGRES_PASSWORD:-admin}@db:5432/portpulse
       DBT_HOST: db
       DBT_PORT: "5432"
       DBT_USER: portpulse
-      DBT_PASSWORD: admin
+      DBT_PASSWORD: ${POSTGRES_PASSWORD:-admin}
       DBT_DATABASE: portpulse
       DBT_SCHEMA: analytics
       AIRFLOW_CONN_PORTPULSE_KAFKA: >-
@@ -45,7 +48,6 @@ services:
 
   metabase:
     image: metabase/metabase:v0.65.4.x
-    profiles: ["bi"]
     depends_on:
       db:
         condition: service_healthy
@@ -62,6 +64,31 @@ services:
       retries: 30
       start_period: 60s
     restart: unless-stopped
+
+  bi-setup:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+      metabase:
+        condition: service_healthy
+    environment:
+      POSTGRES_HOST: db
+      POSTGRES_USER: portpulse
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-admin}
+      POSTGRES_DB: portpulse
+      DBT_HOST: db
+      DBT_PORT: "5432"
+      DBT_USER: portpulse
+      DBT_PASSWORD: ${POSTGRES_PASSWORD:-admin}
+      DBT_DATABASE: portpulse
+      DBT_SCHEMA: analytics
+      METABASE_URL: http://metabase:3000
+      METABASE_DB_PASSWORD: ${METABASE_DB_PASSWORD:-portpulse-local-reader}
+      METABASE_ADMIN_EMAIL: ${METABASE_ADMIN_EMAIL:-admin@example.test}
+      METABASE_ADMIN_PASSWORD: ${METABASE_ADMIN_PASSWORD:-portpulse-local-demo-2026}
+    command: ["bash", "-lc", "dbt build --project-dir /opt/portpulse/dbt && python scripts/setup_metabase.py"]
+    restart: "no"
 
   kafka:
     image: apache/kafka:4.1.1

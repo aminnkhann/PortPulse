@@ -1,18 +1,22 @@
 #!/usr/bin/env bash
 set -e
 
+admin_user=${AIRFLOW_ADMIN_USERNAME:-admin}
+admin_password=${AIRFLOW_ADMIN_PASSWORD:-admin}
+admin_email=${AIRFLOW_ADMIN_EMAIL:-admin@example.com}
+
 airflow db migrate
 
-if airflow users list --output json | python -c 'import json, sys; sys.exit(0 if any(user["username"] == "admin" for user in json.load(sys.stdin)) else 1)'; then
-    airflow users reset-password --username admin --password admin
+if airflow users list --output json | python -c 'import json, sys; sys.exit(0 if any(user["username"] == sys.argv[1] for user in json.load(sys.stdin)) else 1)' "$admin_user"; then
+    airflow users reset-password --username "$admin_user" --password "$admin_password"
 else
     airflow users create \
-        --username admin \
-        --password admin \
+        --username "$admin_user" \
+        --password "$admin_password" \
         --firstname Admin \
         --lastname User \
         --role Admin \
-        --email admin@example.com
+        --email "$admin_email"
 fi
 
 pids=()

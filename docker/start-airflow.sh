@@ -15,4 +15,17 @@ else
         --email admin@example.com
 fi
 
-exec airflow standalone
+pids=()
+airflow api-server --port 8080 & pids+=("$!")
+airflow scheduler & pids+=("$!")
+airflow dag-processor & pids+=("$!")
+airflow triggerer & pids+=("$!")
+
+stop_airflow() {
+    trap - EXIT INT TERM
+    kill "${pids[@]}" 2>/dev/null || true
+    wait
+}
+
+trap stop_airflow EXIT INT TERM
+wait -n "${pids[@]}"

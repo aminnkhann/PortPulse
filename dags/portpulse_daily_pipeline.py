@@ -12,9 +12,8 @@ from pathlib import Path
 
 import pendulum
 import psycopg
-from airflow import DAG
-from airflow.operators.python import PythonOperator
-from airflow.operators.python import get_current_context
+from airflow.providers.standard.operators.python import PythonOperator
+from airflow.sdk import DAG, get_current_context
 from psycopg import sql
 
 

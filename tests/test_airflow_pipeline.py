@@ -9,7 +9,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import psycopg
-from airflow.models.dagbag import DagBag
+from airflow.dag_processing.dagbag import DagBag
 from psycopg import sql
 from psycopg.conninfo import make_conninfo
 
@@ -32,7 +32,7 @@ SOURCE_TABLES = (
 
 class AirflowDagTests(unittest.TestCase):
     def test_dag_imports_with_three_sequential_tasks(self):
-        dagbag = DagBag(dag_folder=str(PROJECT_ROOT / "dags"), include_examples=False)
+        dagbag = DagBag(dag_folder=str(PROJECT_ROOT / "dags"))
         self.assertEqual(dagbag.import_errors, {})
         loaded_dag = dagbag.dags.get(DAG_ID)
         self.assertIsNotNone(loaded_dag)

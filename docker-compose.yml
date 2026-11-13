@@ -26,6 +26,7 @@ services:
       AIRFLOW_HOME: /opt/airflow
       AIRFLOW__CORE__DAGS_FOLDER: /opt/portpulse/dags
       AIRFLOW__CORE__LOAD_EXAMPLES: "False"
+      AIRFLOW__CORE__AUTH_MANAGER: airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager
       DATABASE_URL: postgresql://portpulse:admin@db:5432/portpulse
       DBT_HOST: db
       DBT_PORT: "5432"

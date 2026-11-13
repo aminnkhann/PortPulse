@@ -4,6 +4,8 @@ PortPulse collects estimated arrival times (ETAs) for ships from the Finnish Por
 
 The project runs locally with Docker Compose.
 
+Airflow 3 migrates its metadata database on first startup. Back up the `airflow_data` volume before upgrading an existing installation.
+
 ## What it does
 
 - Fetches port-call ETA data from Digitraffic Portnet V1.

@@ -19,6 +19,8 @@ Do not replay migrations 001–006 against an initialized database. Migrations 0
 
 `postgres_data` stores PortPulse application rows. `airflow_data` stores Airflow's SQLite metadata. `docker compose down` stops services but keeps both volumes. `docker compose down -v` deletes them; avoid it when the data must be retained.
 
+Airflow 3 migrates its metadata database on startup. Before upgrading an existing Airflow 2 installation, stop the stack and back up `airflow_data`; Airflow's [upgrade guide](https://airflow.apache.org/docs/apache-airflow/stable/installation/upgrading_to_airflow3.html) recommends a metadata-database backup before migration.
+
 For an old local volume whose database role still has the previous password, update the role in place without deleting data:
 
 ```sh

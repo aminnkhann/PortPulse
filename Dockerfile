@@ -1,4 +1,4 @@
-FROM apache/airflow:2.10.5-python3.12
+FROM apache/airflow:3.4.0-python3.12
 
 USER root
 RUN apt-get update && apt-get install -y --no-install-recommends git \
@@ -6,8 +6,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends git \
 USER airflow
 
 COPY --chown=airflow:root requirements.txt /tmp/requirements.txt
-RUN pip install --no-cache-dir apache-airflow==2.10.5 \
-    --constraint https://raw.githubusercontent.com/apache/airflow/constraints-2.10.5/constraints-3.12.txt \
+RUN pip install --no-cache-dir apache-airflow==3.4.0 \
+    --constraint https://raw.githubusercontent.com/apache/airflow/constraints-3.4.0/constraints-3.12.txt \
     && pip install --upgrade --no-cache-dir -r /tmp/requirements.txt
 
 COPY --chown=airflow:root . /opt/portpulse

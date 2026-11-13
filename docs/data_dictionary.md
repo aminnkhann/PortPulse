@@ -54,3 +54,14 @@ These tables are separate from Phase 1 `raw_event` and trusted-state tables.
 The models use observation identity, provider event time, collection and ingestion times, ETA, canonical payload hash, and selected fields in `raw_payload`. Rejections contribute their reason, collection/rejection times, and details; quality issues contribute issue code, event identity, collection time, and details. Latest-row ordering uses provider update time followed by collection time, ingestion time, and observation ID.
 
 Per-poll counters reported by the CLI are not persisted as a run ledger. The marts summarize stored records rather than providing per-run trends.
+
+## Simulated streaming CDC
+
+| Relation | Purpose |
+|---|---|
+| `stream_demo.port_eta_state` | Current simulated call state captured by the dedicated Debezium publication. Its primary key is scenario, call, and area. |
+| `stream_demo.port_eta_cdc_event` | Idempotent history of Debezium events keyed by Kafka topic, partition, and offset. `before_values` and `after_values` hold the row images when available. |
+| `analytics.stg_stream_eta_changes` | Typed projection of CDC history, including operation, source update time, Kafka identity, and processing time. |
+| `analytics.mart_stream_latest_eta` | Latest active simulated row per scenario, call, and area; rows whose latest operation is delete are omitted. |
+
+CDC operations use Debezium codes: `c` create, `u` update, `d` delete, and `r` snapshot/read. The simulator's `updated_at_utc` is the fixed simulated source time; `processed_at_utc` is when Airflow stores the event. Kafka topic/partition/offset identify the delivered message, not the simulated time. All synthetic rows use fictional `SIM-` call IDs and remain separate from Portnet observations.

@@ -4,7 +4,25 @@
 
 Compose runs PostgreSQL 16. PortPulse uses database `portpulse`, user `portpulse`, and the local Compose password `admin`. Keep the default ports bound to loopback; do not expose the demo database to the public internet.
 
-On a fresh `postgres_data` volume, the official PostgreSQL image applies SQL files from `migrations/` in filename order (001–007). Initialization scripts run only when the data directory is empty. Changing `POSTGRES_PASSWORD` later does not rotate a role password inside an existing volume.
+On a fresh `postgres_data` volume, the official PostgreSQL image applies SQL files from `migrations/` in filename order (001–008). Initialization scripts run only when the data directory is empty. Changing `POSTGRES_PASSWORD` later does not rotate a role password inside an existing volume.
+
+Migration 008 creates the separate `stream_demo` source and CDC event tables and a publication limited to `stream_demo.port_eta_state`. On a fresh volume it is applied during initialization. For an existing volume, start Compose with the updated PostgreSQL settings and apply only migration 008 once:
+
+```sh
+docker compose --profile streaming up --build -d db kafka kafka-connect
+docker compose exec -T db psql -U portpulse -d portpulse \
+  -f /docker-entrypoint-initdb.d/008_create_streaming_cdc_tables.sql
+```
+
+PostgreSQL starts with `wal_level=logical`, `max_replication_slots=4`, and `max_wal_senders=4`. Changing `wal_level` requires a PostgreSQL restart; `docker compose up` applies the Compose command change while preserving `postgres_data`. Check settings and CDC objects with:
+
+```sh
+docker compose exec -T db psql -U portpulse -d portpulse -c 'SHOW wal_level;'
+docker compose exec -T db psql -U portpulse -d portpulse -c "SELECT pubname FROM pg_publication WHERE pubname = 'portpulse_stream_publication';"
+docker compose exec -T db psql -U portpulse -d portpulse -c "SELECT slot_name, active, restart_lsn FROM pg_replication_slots WHERE slot_name = 'portpulse_stream_slot';"
+```
+
+Debezium creates the logical replication slot on connector startup. The local demo uses the existing `portpulse` account; production should use a dedicated least-privilege replication account rather than the Compose superuser. An inactive slot retains WAL until it resumes or is deliberately removed; monitor disk use and do not drop an active slot.
 
 For an existing database migrated through 006, apply migration 007 once:
 
@@ -59,3 +77,5 @@ docker compose logs --tail 100 airflow
 ```
 
 A valid Portnet poll may return no eligible records. That does not by itself indicate a database or dbt failure.
+
+For Kafka Connect status, inspect `docker compose logs --tail 100 kafka-connect` and `http://localhost:8083/connectors/portpulse-postgres-cdc/status`. If the connector cannot start, check `wal_level`, publication membership, the database account's replication privileges, and that migration 008 was applied. The full procedure is in [the streaming CDC guide](streaming_cdc.md).

@@ -27,3 +27,52 @@ models:
       - name: eta_utc
         data_tests:
           - not_null
+
+  - name: stg_stream_eta_changes
+    columns:
+      - name: event_id
+        data_tests:
+          - unique
+          - not_null
+      - name: kafka_topic
+        data_tests:
+          - not_null
+      - name: kafka_partition
+        data_tests:
+          - not_null
+      - name: kafka_offset
+        data_tests:
+          - not_null
+      - name: cdc_operation
+        data_tests:
+          - not_null
+      - name: scenario_id
+        data_tests:
+          - not_null
+      - name: port_call_id
+        data_tests:
+          - not_null
+      - name: port_area_code
+        data_tests:
+          - not_null
+      - name: source_updated_at_utc
+        data_tests:
+          - not_null
+
+  - name: mart_stream_latest_eta
+    columns:
+      - name: scenario_id
+        data_tests:
+          - not_null
+      - name: port_call_id
+        data_tests:
+          - not_null
+      - name: port_area_code
+        data_tests:
+          - not_null
+      - name: cdc_operation
+        data_tests:
+          - not_null
+      - name: eta_utc
+        data_tests:
+          - not_null

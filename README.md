@@ -13,6 +13,7 @@ Airflow 3 migrates its metadata database on first startup. Back up the `airflow_
 - Stores observations, rejected records, and data-quality issues in PostgreSQL.
 - Uses dbt to select the latest valid ETA for each port call and area and summarize data quality.
 - Uses Airflow to schedule ingestion, build dbt models, and verify the results.
+- Includes an optional Kafka and Debezium CDC demonstration for simulated port traffic.
 
 ## Tech stack
 
@@ -27,6 +28,8 @@ Airflow orchestrates the three pipeline tasks:
 `ingest_portnet → build_dbt_analytics → verify_pipeline`
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for more details.
+
+Start the optional streaming services with `docker compose --profile streaming up --build -d`. See the [streaming CDC guide](docs/streaming_cdc.md) for the demonstration.
 
 ## Getting started
 

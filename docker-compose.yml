@@ -43,6 +43,26 @@ services:
       - airflow_data:/opt/airflow
     restart: unless-stopped
 
+  metabase:
+    image: metabase/metabase:v0.65.4.x
+    profiles: ["bi"]
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      MB_DB_FILE: /metabase-data/metabase.db
+    ports:
+      - "127.0.0.1:${METABASE_PORT:-3000}:3000"
+    volumes:
+      - metabase_data:/metabase-data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:3000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+    restart: unless-stopped
+
   kafka:
     image: apache/kafka:4.1.1
     profiles: ["streaming"]
@@ -118,3 +138,4 @@ volumes:
   postgres_data:
   airflow_data:
   kafka_data:
+  metabase_data:

@@ -31,6 +31,12 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for more details.
 
 Start the optional streaming services with `docker compose --profile streaming up --build -d`. See the [streaming CDC guide](docs/streaming_cdc.md) for the demonstration.
 
+## BI Dashboard
+
+Metabase presents the existing PostgreSQL dbt marts in two dashboards. Start it with `docker compose --profile bi up --build -d`, then open [http://localhost:3000](http://localhost:3000). See the [Metabase guide](docs/metabase.md) for setup and dashboard details.
+
+![PortPulse Kafka CDC dashboard with simulated data](presentation/screenshots/cdc_demo.png)
+
 ## Getting started
 
 You need Docker Engine and Docker Compose v2 installed.

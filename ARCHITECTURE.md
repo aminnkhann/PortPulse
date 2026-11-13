@@ -51,6 +51,22 @@ All generated rows and CDC history stay in `stream_demo`; the real Portnet table
 
 The local broker uses a single KRaft node and has no host-published Kafka port. It is a demonstration, not a durable production cluster. Kafka ordering is guaranteed only within a partition; each simulated call key must continue mapping to one partition, and changing the topic's partition count can invalidate cross-version ordering assumptions. Pausing Debezium can retain WAL through its replication slot. DDL changes are not emitted as CDC events. See [the streaming guide](docs/streaming_cdc.md).
 
+## BI dashboards
+
+```mermaid
+flowchart LR
+    API[Portnet API] --> PG[(PostgreSQL)]
+    CDC[Kafka CDC demo] --> PG
+    PG --> DBT[dbt transformations]
+    DBT --> MART[Gold analytics marts]
+    MART --> MB[Metabase]
+    MB --> UI[BI dashboards]
+    AF[Airflow] -. coordinates .-> API
+    AF -. coordinates .-> DBT
+```
+
+Airflow coordinates ingestion and dbt transformations. Metabase reads the finished marts; it does not ingest or transform source data. The Portnet dashboard uses only real Portnet marts, while a separate dashboard labels simulated CDC rows. See [the Metabase guide](docs/metabase.md).
+
 ## Local deployment and limits
 
 Docker Compose starts PostgreSQL and an Airflow container built from the root Dockerfile. Python, Airflow, and dbt dependencies are installed in that image. The Airflow container connects to PostgreSQL by the Compose service name `db`. PostgreSQL application data and Airflow SQLite metadata use separate named volumes.

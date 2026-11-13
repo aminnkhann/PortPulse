@@ -1,0 +1,41 @@
+name: PortPulse BI smoke test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  metabase:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DBT_HOST: 127.0.0.1
+      DBT_PORT: "5432"
+      DBT_USER: portpulse
+      DBT_PASSWORD: admin
+      DBT_DATABASE: portpulse
+      DBT_SCHEMA: analytics
+      METABASE_URL: http://127.0.0.1:3000
+      METABASE_DB_PASSWORD: ${{ github.run_id }}-ReaderLocalPass!
+      METABASE_ADMIN_EMAIL: admin@example.test
+      METABASE_ADMIN_PASSWORD: ${{ github.run_id }}-AdminLocalPass!
+      PORTPULSE_ADMIN_DATABASE_URL: postgresql://portpulse:admin@127.0.0.1:5432/portpulse
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dbt and database driver
+        run: python -m pip install dbt-core==1.11.17 dbt-postgres==1.11.0 'psycopg[binary]>=3.2,<4'
+      - name: Start fresh PostgreSQL and Metabase services
+        run: docker compose --profile bi up -d --wait --wait-timeout 300 db metabase
+      - name: Build empty but valid marts
+        run: |
+          mkdir -p "$HOME/.dbt"
+          cp dbt/profiles.example.yml "$HOME/.dbt/profiles.yml"
+          dbt debug --project-dir dbt
+          dbt build --project-dir dbt
+      - name: Create the dashboards and run every saved question
+        run: python scripts/setup_metabase.py
+      - name: Stop test containers without deleting volumes
+        if: always()
+        run: docker compose --profile bi down

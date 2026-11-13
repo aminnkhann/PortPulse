@@ -4,7 +4,7 @@
 
 Compose runs PostgreSQL 16. PortPulse uses database `portpulse`, user `portpulse`, and the local Compose password `admin`. Keep the default ports bound to loopback; do not expose the demo database to the public internet.
 
-On a fresh `postgres_data` volume, the official PostgreSQL image applies SQL files from `migrations/` in filename order (001–008). Initialization scripts run only when the data directory is empty. Changing `POSTGRES_PASSWORD` later does not rotate a role password inside an existing volume.
+On a fresh `postgres_data` volume, the official PostgreSQL image applies SQL files from `migrations/` in filename order (001–009). Initialization scripts run only when the data directory is empty. Changing `POSTGRES_PASSWORD` later does not rotate a role password inside an existing volume.
 
 Migration 008 creates the separate `stream_demo` source and CDC event tables and a publication limited to `stream_demo.port_eta_state`. On a fresh volume it is applied during initialization. For an existing volume, start Compose with the updated PostgreSQL settings and apply only migration 008 once:
 
@@ -32,6 +32,15 @@ docker compose exec -T db psql -U portpulse -d portpulse \
 ```
 
 Do not replay migrations 001–006 against an initialized database. Migrations 004 and 006 preserve legacy rows; they are not part of the supported Portnet ingestion route.
+
+For an existing database already migrated through 008, apply only migration 009 once:
+
+```sh
+docker compose exec -T db psql -U portpulse -d portpulse \
+  -f /docker-entrypoint-initdb.d/009_remove_unused_sources.sql
+```
+
+Migration 009 removes the legacy `digitraffic`, `portnet`, and `ais` rows from `source_system` only when neither `raw_event` nor `port_call_state` references them. Referenced source rows and their history remain intact. Do not delete or recreate `postgres_data`, and do not replay migrations 001–008 to apply migration 009.
 
 ## Persistent volumes
 

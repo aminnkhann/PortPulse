@@ -90,7 +90,7 @@ docker compose exec airflow airflow dags unpause portpulse_streaming_cdc
 docker compose exec airflow airflow dags trigger portpulse_streaming_cdc
 ```
 
-It polls no more than 100 records per run, in batches of up to 50, with a five-second poll timeout. Each database batch commits before the Kafka operator commits offsets. If a retry sees a previously stored topic/partition/offset, PostgreSQL ignores that duplicate. Airflow runs dbt and verification only after the consumer task succeeds. The DAG also runs every minute while unpaused.
+It polls no more than 100 records per run, in batches of up to 50, with a five-second poll timeout. Each database batch commits before the Kafka operator commits offsets. If a retry sees a previously stored topic/partition/offset, PostgreSQL ignores that duplicate. After the consumer succeeds, Airflow runs `dbt build`; dbt runs the streaming model checks, including latest-row identity uniqueness and accepted CDC operation values. A failed check fails the build task. The DAG also runs every minute while unpaused.
 
 Inspect stored events and ETAs:
 

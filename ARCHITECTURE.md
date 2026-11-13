@@ -29,6 +29,8 @@ The `portpulse_daily_pipeline` Airflow DAG runs ingestion, dbt build, and verifi
 
 The synthetic JSONL fixture is validated and reconciled across three simulated sources using the project’s deterministic rules. It exercises quarantine, duplicate and collision handling, and trusted ETA selection. Its tables and output are distinct from Portnet observations; real Portnet records do not enter this reconciliation engine.
 
+Portnet reliability tests use deterministic API-shaped responses, including revisions, duplicates, collisions, invalid records, and missing ETAs. They mock the API, replay data in a disposable PostgreSQL database, and run the normal dbt models; the production Airflow DAG continues to ingest only real Portnet data.
+
 ## Local deployment and limits
 
 Docker Compose starts PostgreSQL and an Airflow container built from the root Dockerfile. Python, Airflow, and dbt dependencies are installed in that image. The Airflow container connects to PostgreSQL by the Compose service name `db`. PostgreSQL application data and Airflow SQLite metadata use separate named volumes.

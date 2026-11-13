@@ -1,55 +1,36 @@
 # PortPulse Architecture
 
-PortPulse demonstrates two related but separate data workflows: deterministic synthetic ETA reconciliation (Phase 1) and real single-source Portnet V1 ingestion with analytics (Phases 2–3). Airflow orchestrates the latter; it is not an additional storage or processing layer.
+PortPulse contains a deterministic synthetic reconciliation example and a separate real-data workflow for Finnish Portnet V1 records. Airflow orchestrates the Portnet path; it does not replace PostgreSQL or perform Phase 1 reconciliation.
 
-## End-to-end Portnet workflow
+## Portnet workflow
 
-~~~mermaid
+```mermaid
 flowchart LR
-    API[Digitraffic Portnet V1 API] --> A[scripts.ingest_portnet]
-    A --> V[Pydantic validation]
-    V -->|accepted| O[(portnet_eta_observation)]
-    V -->|rejected with reason| R[(portnet_eta_rejected_event)]
-    O --> Q[(portnet_eta_quality_issue)]
-    O --> S[dbt stg_portnet_eta]
-    R --> H[dbt mart_pipeline_quality]
-    Q --> H
-    S --> L[dbt mart_portnet_latest_eta]
-    S --> H
-    DAG[Airflow: ingest >> dbt build >> verify] --> A
-    DAG --> S
-    DAG --> H
-~~~
+    API[Digitraffic Portnet V1] --> CLI[Python ingestion CLI]
+    CLI --> VAL[Pydantic validation]
+    VAL -->|accepted| OBS[(PostgreSQL observations)]
+    VAL -->|rejected with reason| REJ[(PostgreSQL rejected records)]
+    OBS --> ISSUE[(Quality issues)]
+    OBS --> DBT[dbt staging and marts]
+    REJ --> DBT
+    ISSUE --> DBT
+    DAG[Airflow DAG] --> CLI
+    DAG --> DBT
+    DAG --> VERIFY[Pipeline verification]
+```
 
-Airflow task `ingest_portnet` calls the existing CLI for the UTC run date. `build_dbt_analytics` runs `dbt build`, which builds all three models and executes their tests. `verify_pipeline` checks the source tables, model relations, source-to-model counts, quality metrics, and uniqueness of the latest ETA per port call and area. A task failure fails the DAG run; Airflow retries transient task failures twice with a five-minute delay. Runs do not overlap and historical catch-up is disabled. The schedule is 06:00 UTC daily; users can trigger a run manually and supply an optional `run_date`.
+The CLI fetches a UTC collection date from the Portnet V1 REST API. Pydantic validates external records at ingestion. Accepted observations, rejected records, and duplicate or ID-collision quality issues are stored in dedicated PostgreSQL tables. Provider event time, API collection time, and database ingestion time are represented separately in UTC.
 
-## Validation, identity, and clocks
+The dbt project reads the Portnet tables in `public` and builds `analytics.stg_portnet_eta`, `analytics.mart_portnet_latest_eta`, and `analytics.mart_pipeline_quality`. The latest mart selects an eligible observation per port call and area and excludes collided event IDs. dbt tests run as part of `dbt build`.
 
-The Portnet adapter validates provider data with Pydantic. Accepted observations, rejected records with reasons, and duplicate/collision quality issues are stored in dedicated PostgreSQL tables. Identity is scoped by provider port-call ID, area, and provider update timestamp. An ETA revision becomes a new observation; exact repeats and conflicting payloads do not silently change trusted records. Provider event time, API collection time, and database ingestion time are stored separately in UTC.
+The `portpulse_daily_pipeline` Airflow DAG runs ingestion, dbt build, and verification sequentially. Verification checks source and model relations, counts, quality metrics, and latest-row uniqueness. The DAG is paused on initial setup; its schedule is 06:00 UTC when enabled.
 
-The adapter is independent of Phase 1 synthetic reconciliation. Real Portnet rows are not passed through the three-source trusted-ETA engine. Phase 1 retains its fixed synthetic fixture, legacy `raw_event` tables, and deterministic golden output.
+## Synthetic Phase 1 workflow
 
-## PostgreSQL and dbt
+The synthetic JSONL fixture is validated and reconciled across three simulated sources using the project’s deterministic rules. It exercises quarantine, duplicate and collision handling, and trusted ETA selection. Its tables and output are distinct from Portnet observations; real Portnet records do not enter this reconciliation engine.
 
-Migrations 001–007 are retained and run in order on a fresh Compose database. Migration 007 adds the Portnet tables. Existing generic tables and legacy rows remain intact.
+## Local deployment and limits
 
-dbt reads the Portnet source tables in `public` and builds:
+Docker Compose starts PostgreSQL and an Airflow container built from the root Dockerfile. Python, Airflow, and dbt dependencies are installed in that image. The Airflow container connects to PostgreSQL by the Compose service name `db`. PostgreSQL application data and Airflow SQLite metadata use separate named volumes.
 
-- `analytics.stg_portnet_eta`: validated source projection.
-- `analytics.mart_portnet_latest_eta`: one latest eligible ETA per port call and area, excluding event-ID collisions.
-- `analytics.mart_pipeline_quality`: observation, rejection, duplicate, collision, and latest-row counts.
-
-dbt uses the same PostgreSQL application database as ingestion, with credentials supplied through the Compose environment. Airflow metadata uses SQLite in the separate `airflow_data` Compose volume.
-
-## Local Docker Compose deployment
-
-The repository builds a small image from Apache Airflow 2.10.5 and Python 3.12, then installs the PortPulse and dbt requirements. One `airflow` Compose service runs `airflow standalone`, which supplies the local UI and scheduler. A startup script initializes Airflow metadata and sets the demo UI login to `admin` / `admin`. The DAG is paused when first created.
-
-The Airflow container reaches PostgreSQL at hostname `db`; it does not use `localhost` for inter-container traffic. PostgreSQL migrations 001–007 run automatically on a fresh `postgres_data` volume. The named `postgres_data` volume stores PortPulse rows, and the separate `airflow_data` volume stores orchestration metadata. Run `docker compose up --build -d` from the repository root to start the demo. This setup is for local learning, not production deployment. See [README setup](README.md#local-prerequisites-and-installation) and the [final demo runbook](docs/final_demo.md).
-
-## Current limitations
-
-- Portnet API availability and date eligibility are external; an empty valid poll is healthy.
-- Airflow's SQLite metadata and `admin` / `admin` demo login are for local development only.
-- The quality mart describes this Portnet ingestion path, not the separate synthetic Phase 1 reconciler.
-- The project does not include a dashboard, cloud deployment, or additional providers.
+This is a local learning/demo deployment. Compose binds the service ports to loopback and uses documented demo credentials. It is not configured or claimed as production-ready. See [the README](README.md) for running it and [the database guide](docs/database.md) for volume and migration operations.

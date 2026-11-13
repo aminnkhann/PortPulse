@@ -1,127 +1,116 @@
 # PortPulse
 
-PortPulse is a small data engineering capstone that ingests port-call ETA updates, validates and stores them, then produces queryable analytics. Its supported real-data path is **Digitraffic Portnet V1 → Python/Pydantic → PostgreSQL → dbt → analytics marts**, orchestrated by Apache Airflow.
+PortPulse ingests Finnish maritime port-call ETA updates, validates them, stores them in PostgreSQL, and builds analytics with dbt. Airflow orchestrates the real-data workflow.
 
-## Architecture and data
+## What it does
 
-- **Phase 1 (synthetic):** deterministic JSONL fixtures exercise validation, quarantine, duplicate and ID-collision handling, and trusted ETA reconciliation across three simulated sources. The golden ETA is `2026-01-15T15:40:00Z` from `COORD-DELAYED-01`.
-- **Phases 2–3 (Portnet):** the existing Python CLI fetches Portnet V1 records, validates and stores observations/rejections/quality issues in PostgreSQL, and dbt builds staging and analytics marts. Real Portnet observations are not reconciled by the Phase 1 synthetic engine.
-- **Orchestration:** one Airflow DAG runs ingestion, `dbt build`, then database and metric verification. Airflow adds orchestration only; PostgreSQL remains the application store.
+PortPulse keeps two data paths separate:
 
-No Kafka, MQTT, AIS, other API provider, cloud deployment, or dashboard is part of the supported workflow. The old V2/AIS experiment remains historical only.
+- **Synthetic reconciliation:** deterministic fixtures exercise the Phase 1 three-source ETA rules, duplicate and collision handling, and quarantine. Its golden ETA is `2026-01-15T15:40:00Z` from `COORD-DELAYED-01`.
+- **Portnet V1 ingestion:** a Python CLI fetches Digitraffic Portnet V1 data, validates each record with Pydantic, and stores accepted observations, rejected records, and quality issues in PostgreSQL. This source provides Finnish maritime data; it is not operational port data for Hamburg.
+- **dbt analytics:** dbt stages Portnet observations and builds latest-ETA and pipeline-quality models. It does not run Phase 1 reconciliation over Portnet records.
+- **Airflow orchestration:** the `portpulse_daily_pipeline` DAG runs ingestion, `dbt build`, and pipeline verification in sequence.
 
-## Deployment approach
+## Architecture and stack
 
-Run the complete local demo with Docker Compose. Compose starts PostgreSQL and one custom Airflow container; the Airflow container includes the PortPulse Python dependencies and dbt, then runs the UI, scheduler, ingestion task, and dbt task. Inside Compose, the DAG connects to PostgreSQL using hostname `db`. PostgreSQL keeps PortPulse application data in the existing `postgres_data` volume; Airflow metadata uses a separate `airflow_data` volume. Docker builds the Python environment from the single root `requirements.txt`; the Compose workflow needs no host virtual environment. This is a local learning setup, not a production deployment.
+`Digitraffic Portnet V1 → Python / Pydantic → PostgreSQL → dbt analytics`
 
-## Local prerequisites and installation
+Apache Airflow schedules and monitors the Portnet workflow. Docker Compose starts PostgreSQL and the custom Airflow image; the root Dockerfile builds the Airflow environment with the project and dbt dependencies. See [ARCHITECTURE.md](ARCHITECTURE.md) for the workflow and [the data dictionary](docs/data_dictionary.md) for fields and tables.
 
-Install Docker Engine and Docker Compose v2. From the repository root, build and start everything with one command:
+## Quick start
 
-~~~sh
+Prerequisites: Docker Engine and Docker Compose v2. From the repository root:
+
+```sh
 docker compose up --build -d
 docker compose ps
-~~~
+```
 
-On a fresh database volume, PostgreSQL applies migrations 001–007 in order. Existing `postgres_data` is preserved; `docker compose down` does not delete it. Do not use `docker compose down -v` if you want to keep your data.
+This starts PostgreSQL and Airflow. The services publish their ports on the local machine only. Open Airflow at [http://localhost:8080](http://localhost:8080) and sign in with the local demo credentials `admin` / `admin`. These defaults are for local demonstration only; do not expose this setup to the public internet or use it as a production deployment. The DAG starts paused so it will not poll the live API until you trigger it or enable its schedule.
 
-Open [http://localhost:8080](http://localhost:8080) and sign in with **admin / admin**. These simple credentials are for local development only. The DAG is created paused so it cannot start a live API poll before you choose to run it.
+PostgreSQL applies migrations 001–007 when its data volume is initialized for the first time. The named `postgres_data` and `airflow_data` volumes persist across `docker compose down`. To stop the services while retaining data:
 
-To stop the containers while keeping both database volumes, run:
-
-~~~sh
+```sh
 docker compose down
-~~~
+```
 
-### Existing PostgreSQL volume
+Avoid `docker compose down -v` unless you intend to remove both volumes. See [docs/database.md](docs/database.md) for existing-volume migration and troubleshooting details.
 
-PostgreSQL does not change an existing database user's password just because the Compose environment changes. If you are upgrading the previous local setup, start the database and run this one-time password update through Compose; it preserves all database rows and volumes:
+## Run the Portnet pipeline
 
-~~~sh
-docker compose up -d db
-docker compose exec -T db psql -U portpulse -d portpulse -c "ALTER ROLE portpulse WITH PASSWORD 'admin';"
-docker compose up --build -d
-~~~
+Trigger `portpulse_daily_pipeline` from the Airflow UI. To run it from the container CLI with a specific UTC date:
 
-Fresh volumes already use the local `admin` password. Migrations run automatically on first initialization.
+```sh
+docker compose exec airflow airflow dags trigger \
+  --conf '{"run_date":"2026-11-12"}' portpulse_daily_pipeline
+```
 
-## Run the ingestion CLI independently
+The DAG is scheduled daily at 06:00 UTC after it is unpaused. It runs `ingest_portnet`, `build_dbt_analytics`, and `verify_pipeline`. To inspect discovery and task output:
 
-The ingestion CLI is also available inside the Airflow container. Provide a UTC collection date:
+```sh
+docker compose exec airflow airflow dags list
+docker compose logs --tail 100 airflow
+```
 
-~~~sh
+To run ingestion independently, use a UTC collection date and optionally filter by port:
+
+```sh
 docker compose exec airflow python -m scripts.ingest_portnet --date 2026-11-12
-~~~
+# Optional port filter:
+docker compose exec airflow python -m scripts.ingest_portnet --date 2026-11-12 --port FIHEL
+```
 
-Add `--port FIHEL` to filter by port. Repeated runs use the existing duplicate, collision, and quarantine behavior.
+Portnet V1 is provided by Digitraffic and covers Finnish maritime data. API availability and date eligibility are external; an empty valid poll is possible. See [Digitraffic maritime data](https://www.digitraffic.fi/en/marine-traffic/) for source information.
 
-## Build dbt analytics
+## Inspect PostgreSQL and dbt outputs
 
-The Airflow image includes dbt and a profile that reads credentials from the Compose environment. dbt builds automatically when you trigger the DAG. To run the same build manually inside the container:
+The Airflow image includes dbt and a Compose-configured PostgreSQL profile. To build the models manually:
 
-~~~sh
+```sh
 docker compose exec airflow dbt debug --project-dir /opt/portpulse/dbt
 docker compose exec airflow dbt build --project-dir /opt/portpulse/dbt
-~~~
+```
 
-`dbt build` builds all three models and runs their data tests. The local example uses `admin` as the PostgreSQL password; change it consistently in `docker-compose.yml` if you want a different local password.
+Inspect the resulting marts with `psql`:
 
-## Run the Airflow pipeline
-
-The Dockerfile pins Apache Airflow 2.10.5 and installs the project and dbt dependencies with the matching official constraints. The DAG ID is `portpulse_daily_pipeline`. It runs daily at 06:00 UTC after you unpause it, with catch-up disabled and at most one active run. The tasks run sequentially: `ingest_portnet` → `build_dbt_analytics` → `verify_pipeline`.
-
-Check container health and DAG discovery with:
-
-~~~sh
-docker compose ps
-docker compose exec airflow airflow dags list
-~~~
-
-To run the DAG once, leave it paused and select **Trigger DAG** in the UI. To enable its daily schedule, toggle the pause control in the UI. You can also use the Airflow CLI inside the Compose container:
-
-~~~sh
-docker compose exec airflow airflow dags trigger --conf '{"run_date":"2026-11-12"}' portpulse_daily_pipeline
-docker compose exec airflow airflow dags unpause portpulse_daily_pipeline
-~~~
-
-Omit `--conf` to use the run's logical date converted to UTC. The UI Graph view and task Logs tabs show task status, dbt tests, and the final health summary.
-
-## Query analytics outputs
-
-Run these from the repository root after `dbt build`:
-
-~~~sh
+```sh
 docker compose exec -T db psql -U portpulse -d portpulse -c 'SELECT * FROM analytics.stg_portnet_eta LIMIT 5;'
-docker compose exec -T db psql -U portpulse -d portpulse -c 'SELECT port_call_id, port_area_code, event_id, provider_updated_at_utc, eta_utc FROM analytics.mart_portnet_latest_eta ORDER BY port_call_id, port_area_code;'
+docker compose exec -T db psql -U portpulse -d portpulse -c 'SELECT port_call_id, port_area_code, event_id, provider_updated_at_utc, eta_utc FROM analytics.mart_portnet_latest_eta ORDER BY port_call_id, port_area_code LIMIT 10;'
 docker compose exec -T db psql -U portpulse -d portpulse -c 'SELECT * FROM analytics.mart_pipeline_quality;'
-~~~
+```
 
-## Phase 1 synthetic reconciliation
+For cumulative stored observations and quarantined records, see the queries in [docs/database.md](docs/database.md).
 
-~~~sh
+## Run the synthetic Phase 1 example
+
+This deterministic fixture flow is separate from Portnet ingestion and dbt:
+
+```sh
 docker compose exec airflow python -m scripts.ingest_fixture
 docker compose exec airflow python -m scripts.reconcile
 docker compose exec airflow python -m scripts.query_state PC-DEMO-001
-~~~
+```
 
-## Tests and checks
+## Tests and limitations
 
-Run lint and unit checks inside the Airflow container; the database-backed suite and full dbt build also run in GitHub Actions against a disposable PostgreSQL service:
+Inside the running Airflow container:
 
-~~~sh
+```sh
 docker compose exec airflow ruff check /opt/portpulse
-docker compose exec airflow python -m unittest discover -s tests -v
-~~~
+docker compose exec -e PORTPULSE_TEST_DATABASE_URL=postgresql://portpulse:admin@db:5432/portpulse airflow python -m unittest discover -s tests -v
+```
 
-GitHub Actions runs Python tests, Ruff, DAG import checks, and dbt build against deterministic fixtures; it does not call the live API.
+GitHub Actions also runs Python tests, Ruff, Airflow DAG import checks, and a PostgreSQL-backed dbt build using deterministic test data. CI does not call the live API. These checks verify the tested code paths; they are not performance benchmarks or a production-readiness assessment.
 
-## Project guide
+The Compose setup uses local demo credentials and SQLite for Airflow metadata. Credentials are not configurable through a supported setup workflow yet. The ports bind to loopback by default; keep them local and do not expose them to the public internet. The project has no dashboard or cloud deployment, and the quality mart describes Portnet ingestion rather than synthetic reconciliation.
 
-- [Product requirements](PRD.md)
+## Technical documentation
+
 - [Architecture](ARCHITECTURE.md)
-- [Database runbook](docs/database.md)
+- [Database operations and troubleshooting](docs/database.md)
 - [Data dictionary](docs/data_dictionary.md)
-- [Final demo runbook](docs/final_demo.md)
-- [Presentation outline](docs/presentation_outline.md)
-- [Progress](progress.md)
-- [Dated reports](reports/)
+- [Agent and maintenance guidance](AGENTS.md)
+
+## License
+
+No license has been selected. Until one is added, reuse and redistribution rights are not explicitly granted. See the repository owner’s licensing decision before reusing the project.

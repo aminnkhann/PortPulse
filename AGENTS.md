@@ -4,7 +4,7 @@ PortPulse is a small learning project. Prefer code a beginner can read and expla
 
 ## Keep code simple
 
-- Build only what the approved PRD requires. Do not add extra features “for later.”
+- Build only what the approved product requirements call for. Do not add extra features “for later.”
 - Prefer the smallest direct implementation that solves the task.
 - Use the Python standard library first. Add a dependency only when the task needs it and the standard library is not a good fit.
 - Keep functions short and focused. Use plain data structures and clear names.
@@ -25,17 +25,10 @@ PortPulse is a small learning project. Prefer code a beginner can read and expla
 - Add focused tests for new behavior when a test setup exists. Do not create a test framework for a tiny change.
 - Run only the checks needed for the change, and state what was and was not checked.
 - Comment only when the reason for a choice is not clear from the code.
-- Keep README, rules, schema, fixture, and expected output consistent when changing the event contract.
+- Keep README, rules, schema, fixtures, and expected output consistent when changing the event contract.
 
-## Synchronized GitHub repositories
+## Repository maintenance
 
-Keep these two repositories in sync:
-
-- Course repository: https://github.com/dci-fbw-dataeng-python-25-a/amin-final-project
-- Personal repository: https://github.com/aminnkhann/portpulse
-
-For implementation changes, apply the same source, tests, migrations, fixtures, runtime configuration, dependency files, and README changes to both repositories in the same work session. Use matching branch names, commit messages, and PR titles; link corresponding PRs and keep them open until both checks pass. Never merge one side while the other side is unresolved.
-
-These repository-specific files do not need to be mirrored: `PRD.md`, `.github/workflows/` (CI), `progress.md`, and `docs/`. Keep them accurate in the repository being changed when useful. If an implementation or dependency change requires a CI adjustment for the checks to run, make the required adjustment in both repositories. After merging, compare implementation files rather than requiring documentation and CI file trees to match.
-
-The repositories have separate Git histories, so their commit hashes and PR numbers will differ. If either repository is inaccessible or its PR cannot be made ready, stop before merging either side and report what remains.
+- Documentation-only work in the personal repository may be maintained independently of the DCI course repository. Keep public documentation accurate for this repository and do not rely on archived planning documents.
+- For implementation changes, synchronize the same source, tests, migrations, fixtures, runtime configuration, dependency files, and README changes to both repositories: <https://github.com/dci-fbw-dataeng-python-25-a/amin-final-project> and <https://github.com/aminnkhann/portpulse>. If a CI adjustment is needed for an implementation or dependency change, make it in both repositories. Use matching branch names, commit messages, and PR titles, link corresponding PRs, and keep both open until checks pass. Never merge one side while the other is unresolved. If either repository is inaccessible or its PR cannot be made ready, stop before merging either side and report the outstanding synchronization work.
+- The repositories have separate Git histories, so commit hashes and PR numbers differ. Repository-specific `.github/workflows/` and `docs/` files need not be mirrored. After merging, compare implementation files rather than requiring documentation and CI trees to match.

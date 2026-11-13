@@ -1,0 +1,38 @@
+name: PortPulse BI smoke test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  metabase:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      POSTGRES_PASSWORD: admin
+      METABASE_DB_PASSWORD: ${{ github.run_id }}-ReaderLocalPass!
+      METABASE_ADMIN_EMAIL: admin@example.test
+      METABASE_ADMIN_PASSWORD: ${{ github.run_id }}-AdminLocalPass!
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install the database driver for the permission test
+        run: python -m pip install 'psycopg[binary]>=3.2,<4'
+      - name: Start the complete stack and wait for automatic BI setup
+        run: |
+          docker compose up -d
+          docker compose wait bi-setup
+          docker compose wait cdc-setup
+          docker compose logs bi-setup
+          docker compose logs cdc-setup
+      - name: Verify the read-only account against PostgreSQL
+        run: python -m unittest discover -s tests -p 'test_metabase_permissions.py' -v
+      - name: Re-run setup and confirm it completes again without duplicate resources
+        run: |
+          docker compose up -d --force-recreate bi-setup
+          docker compose wait bi-setup
+          docker compose logs bi-setup
+      - name: Stop test containers without deleting volumes
+        if: always()
+        run: docker compose down

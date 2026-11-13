@@ -1,160 +1,56 @@
 # PortPulse
 
-PortPulse collects estimated arrival times (ETAs) for ships from the Finnish Portnet API. It validates and stores updates in PostgreSQL, uses dbt to build analytics tables, and runs the pipeline with Apache Airflow.
+PortPulse collects estimated arrival times (ETAs) from Digitraffic Portnet V1, validates them with Python and Pydantic, stores them in PostgreSQL, and builds analytics marts with dbt. Airflow runs the pipeline.
 
-The project runs locally with Docker Compose.
+## Start PortPulse
 
-Airflow 3 migrates its metadata database on first startup. Back up the `airflow_data` volume before upgrading an existing installation.
-
-## What it does
-
-- Fetches port-call ETA data from Digitraffic Portnet V1.
-- Validates incoming records with Python and Pydantic.
-- Stores observations, rejected records, and data-quality issues in PostgreSQL.
-- Uses dbt to select the latest valid ETA for each port call and area and summarize data quality.
-- Uses Airflow to schedule ingestion, build dbt models, and verify the results.
-- Includes an optional Kafka and Debezium CDC demonstration for simulated port traffic.
-
-## Tech stack
-
-Python · Pydantic · PostgreSQL · dbt · Apache Airflow · Docker
-
-**Data flow:**
-
-`Portnet V1 API → Python → PostgreSQL → dbt → Analytics`
-
-Airflow orchestrates the three pipeline tasks:
-
-`ingest_portnet → build_dbt_analytics → verify_pipeline`
-
-See [ARCHITECTURE.md](ARCHITECTURE.md) for more details.
-
-Start the optional streaming services with `docker compose --profile streaming up --build -d`. See the [streaming CDC guide](docs/streaming_cdc.md) for the demonstration.
-
-## Getting started
-
-You need Docker Engine and Docker Compose v2 installed.
-
-Clone the repository:
+Install Docker Engine and Docker Compose v2, then run:
 
 ```bash
-git clone https://github.com/aminnkhann/portpulse.git
-cd portpulse
+docker compose up -d
 ```
 
-Build and start the services:
+This starts PostgreSQL, Airflow, Metabase, and a one-time setup job that builds the marts and creates the dashboards. Open [Airflow](http://localhost:8080) and [Metabase](http://localhost:3000) on your computer.
 
-```bash
-docker compose up --build -d
-```
+Local demo logins are `admin` / `admin` for Airflow and `admin@example.test` / `portpulse-local-demo-2026` for Metabase. Override them with the variables in `.env.example`; never use the defaults in a public deployment.
 
-Check that the containers are running:
+## BI dashboards
 
-```bash
-docker compose ps
-```
+The **PortPulse — Portnet Overview** dashboard shows only real Portnet mart data. It stays empty until Portnet observations have been ingested. The **PortPulse — Kafka CDC Demo (SIMULATED DATA)** dashboard shows the separate simulated CDC example.
 
-Open the Airflow UI:
+![Portnet overview dashboard showing an honest empty state](docs/images/portnet_overview.png)
 
-**http://localhost:8080**
+![Kafka CDC dashboard labeled as simulated data](docs/images/cdc_demo.png)
 
-Default local demo credentials:
+Kafka and Debezium start with the same command. Compose also registers the CDC connector automatically. The streaming Airflow DAG remains paused until you choose to run the simulation. See the [Metabase guide](docs/metabase.md) and [CDC guide](docs/streaming_cdc.md) for details.
 
-- Username: `admin`
-- Password: `admin`
+## Run the Portnet pipeline
 
-The DAG starts paused, so it will not automatically fetch data.
-
-> This configuration is intended for local development only. Do not expose the Airflow UI or PostgreSQL to the public internet.
-
-## Run the pipeline
-
-In Airflow, find the DAG named `portpulse_daily_pipeline` and click **Trigger DAG**.
-
-You can also trigger it from the terminal:
+The `portpulse_daily_pipeline` DAG starts paused. In Airflow, unpause it to use its 06:00 UTC schedule, or trigger it manually. To trigger from the command line:
 
 ```bash
 docker compose exec airflow airflow dags trigger portpulse_daily_pipeline
 ```
 
-To process a specific UTC date:
+## Data and limits
 
-```bash
-docker compose exec airflow airflow dags trigger \
-  --conf '{"run_date":"2026-11-12"}' \
-  portpulse_daily_pipeline
-```
+Portnet V1 provides Finnish maritime data, not Hamburg operational port data. Availability and ETA coverage depend on [Digitraffic](https://www.digitraffic.fi/en/marine-traffic/). The latest-ETA mart contains the current record per port call and area; the quality mart is a current snapshot, not a historical trend.
 
-Use the Airflow Graph view to follow each task and inspect its logs.
+PortPulse is a local learning project, not a production maritime tracking service. Do not expose Airflow, PostgreSQL, Metabase, Kafka, or Kafka Connect to the public internet.
 
-The DAG is scheduled for 06:00 UTC daily when unpaused.
+## Documentation and tests
 
-## View the results
+- [Architecture](ARCHITECTURE.md)
+- [Database operations](docs/database.md)
+- [Data dictionary](docs/data_dictionary.md)
+- [Streaming CDC demonstration](docs/streaming_cdc.md)
+- [Metabase setup and troubleshooting](docs/metabase.md)
 
-After the pipeline finishes, you can query the analytics tables in PostgreSQL.
-
-**Latest ETA for each port call and area:**
-
-```bash
-docker compose exec -T db psql -U portpulse -d portpulse \
-  -c "SELECT port_call_id, port_area_code, eta_utc
-      FROM analytics.mart_portnet_latest_eta
-      LIMIT 10;"
-```
-
-**Pipeline data quality:**
-
-```bash
-docker compose exec -T db psql -U portpulse -d portpulse \
-  -c "SELECT * FROM analytics.mart_pipeline_quality;"
-```
-
-The quality mart contains counts of accepted observations, rejected records, duplicate issues, collision issues, and latest ETA records.
-
-To rebuild the analytics tables manually:
-
-```bash
-docker compose exec airflow dbt build \
-  --project-dir /opt/portpulse/dbt
-```
-
-## Tests
-
-Run the Python unit tests and Ruff:
+Run Python tests and Ruff in the Airflow container:
 
 ```bash
 docker compose exec airflow python -m unittest discover -s tests -v
 docker compose exec airflow ruff check /opt/portpulse
 ```
 
-GitHub Actions also runs PostgreSQL integration tests, Airflow DAG checks, and dbt models and tests against deterministic fixture data.
-
-The CI workflow does not call the live Portnet API.
-
-## Project scope
-
-PortPulse uses real ETA observations from [Digitraffic's Finnish maritime data](https://www.digitraffic.fi/en/marine-traffic/).
-
-The repository also includes a separate synthetic example for testing ETA reconciliation across three simulated sources. This example is independent of the real Portnet pipeline.
-
-PortPulse is a local Data Engineering project, not a production maritime tracking service. API availability and ETA coverage depend on the data provider.
-
-## Documentation
-
-- [Architecture](ARCHITECTURE.md)
-- [Database setup and troubleshooting](docs/database.md)
-- [Data dictionary](docs/data_dictionary.md)
-
-## Stopping the application
-
-Stop the containers with:
-
-```bash
-docker compose down
-```
-
-This keeps the PostgreSQL and Airflow data volumes. Avoid `docker compose down -v` unless you intend to delete the stored data.
-
-## License
-
-No software license has been selected yet.
+Stop the services with `docker compose down`. This preserves database, Airflow, Kafka, and Metabase volumes.

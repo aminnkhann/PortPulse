@@ -204,7 +204,10 @@ def _active_eta_details(call_id, call, details, received_at):
                     "AMBIGUOUS_PORT_AREA",
                     _safe_call(call),
                     received_at,
-                    "portAreaCode is required when a call has multiple active ETA details",
+                    (
+                        "portAreaCode is required when a call has "
+                        "multiple active ETA details"
+                    ),
                     call_id=call_id,
                 )
             )

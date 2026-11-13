@@ -12,7 +12,7 @@ No Kafka, MQTT, AIS, other API provider, cloud deployment, or dashboard is part 
 
 ## Deployment approach
 
-Run the complete local demo with Docker Compose. Compose starts PostgreSQL and one custom Airflow container; the Airflow container includes the PortPulse Python dependencies and dbt, then runs the UI, scheduler, ingestion task, and dbt task. Inside Compose, the DAG connects to PostgreSQL using hostname `db`. PostgreSQL keeps PortPulse application data in the existing `postgres_data` volume; Airflow metadata uses a separate `airflow_data` volume. This is a local learning setup, not a production deployment.
+Run the complete local demo with Docker Compose. Compose starts PostgreSQL and one custom Airflow container; the Airflow container includes the PortPulse Python dependencies and dbt, then runs the UI, scheduler, ingestion task, and dbt task. Inside Compose, the DAG connects to PostgreSQL using hostname `db`. PostgreSQL keeps PortPulse application data in the existing `postgres_data` volume; Airflow metadata uses a separate `airflow_data` volume. Docker builds the Python environment from the single root `requirements.txt`; the Compose workflow needs no host virtual environment. This is a local learning setup, not a production deployment.
 
 ## Local prerequisites and installation
 

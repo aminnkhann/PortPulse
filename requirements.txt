@@ -1,3 +1,8 @@
+apache-airflow==2.10.5
+dbt-core==1.11.17
+dbt-postgres==1.11.0
+# dbt needs newer protobuf/OTLP packages than Airflow's default constraints.
+opentelemetry-exporter-otlp==1.45.2
 pydantic>=2.7,<3
 PyYAML>=6,<7
 psycopg[binary]>=3.2,<4

@@ -20,9 +20,8 @@ UtcTimestamp = Annotated[
 
 class EventFields(BaseModel):
     """Shared normalized fields for source-specific event contracts."""
-    model_config = ConfigDict(
-        extra="forbid"
-    )
+
+    model_config = ConfigDict(extra="forbid")
 
     event_id: Annotated[str, StringConstraints(min_length=1)]
     port_call_id: Annotated[str, StringConstraints(min_length=1)]

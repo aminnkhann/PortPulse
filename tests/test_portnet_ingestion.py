@@ -66,7 +66,8 @@ class PortnetNormalizationTests(unittest.TestCase):
 
     def test_portnet_observations_are_independent_and_have_separate_times(self):
         events, rejected, metrics = ingest_portnet.normalize_data(
-            [port_call()], RECEIVED_AT,
+            [port_call()],
+            RECEIVED_AT,
         )
         self.assertEqual(rejected, [])
         self.assertEqual(metrics["accepted_portnet_observations"], 2)
@@ -101,16 +102,22 @@ class PortnetNormalizationTests(unittest.TestCase):
     def test_no_eta_and_completed_calls_have_separate_counts(self):
         calls = [
             {"portCallId": 1, "portAreaDetails": []},
-            {"portCallId": 2, "portAreaDetails": [{
-                "portAreaCode": "VUOS", "eta": "2026-11-10T12:00:00Z",
-                "etaTimestamp": "2026-11-10T07:00:00Z", "ata": "2026-11-10T11:00:00Z",
-            }]},
+            {
+                "portCallId": 2,
+                "portAreaDetails": [
+                    {
+                        "portAreaCode": "VUOS",
+                        "eta": "2026-11-10T12:00:00Z",
+                        "etaTimestamp": "2026-11-10T07:00:00Z",
+                        "ata": "2026-11-10T11:00:00Z",
+                    }
+                ],
+            },
         ]
         events, rejected, metrics = ingest_portnet.normalize_data(calls, RECEIVED_AT)
         self.assertEqual((events, rejected), ([], []))
         self.assertEqual(metrics["portnet_calls_without_eta_skipped"], 1)
         self.assertEqual(metrics["completed_portnet_calls_skipped"], 1)
-
 
 
 class PortnetPostgresTests(unittest.TestCase):
@@ -177,9 +184,11 @@ class PortnetPostgresTests(unittest.TestCase):
                     "SELECT port_call_id FROM port_call"
                 ).fetchone()[0]
                 self.assertEqual(existing_call, "existing-call")
-                self.assertIsNotNone(connection.execute(
-                    "SELECT to_regclass('portnet_eta_observation')"
-                ).fetchone()[0])
+                self.assertIsNotNone(
+                    connection.execute(
+                        "SELECT to_regclass('portnet_eta_observation')"
+                    ).fetchone()[0]
+                )
         finally:
             with psycopg.connect(self.base_url) as connection:
                 connection.execute(

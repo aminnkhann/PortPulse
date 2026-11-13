@@ -70,7 +70,9 @@ def group_events(events, port_call_id):
     groups = defaultdict(lambda: defaultdict(list))
     for event in events:
         if event.get("port_call_id") == port_call_id:
-            groups[event["event_id"]][ingest_fixture.canonical_hash(event)].append(event)
+            groups[event["event_id"]][ingest_fixture.canonical_hash(event)].append(
+                event
+            )
 
     unique_events = []
     duplicate_counts = {}
@@ -96,12 +98,12 @@ def group_events(events, port_call_id):
 def latest_event(events):
     newest_time = max(parse_utc(event["event_time_utc"]) for event in events)
     newest = [
-        event for event in events
-        if parse_utc(event["event_time_utc"]) == newest_time
+        event for event in events if parse_utc(event["event_time_utc"]) == newest_time
     ]
     newest_received = max(parse_utc(event["received_at_utc"]) for event in newest)
     newest = [
-        event for event in newest
+        event
+        for event in newest
         if parse_utc(event["received_at_utc"]) == newest_received
     ]
     return min(newest, key=lambda event: event["event_id"])
@@ -126,24 +128,28 @@ def build_source_states(events, sources, as_of):
             else "Expected to Arrive"
         )
         if visit_status != "Expected to Arrive":
-            states.append({
-                "source_id": source_id,
-                "status": "INELIGIBLE",
-                "event_id": event["event_id"],
-                "visit_status": visit_status,
-            })
+            states.append(
+                {
+                    "source_id": source_id,
+                    "status": "INELIGIBLE",
+                    "event_id": event["event_id"],
+                    "visit_status": visit_status,
+                }
+            )
             continue
         received_at = parse_utc(event["received_at_utc"])
         age_minutes = int((as_of - received_at).total_seconds() // 60)
         status = "STALE" if age_minutes > source["freshness_minutes"] else "ACTIVE"
-        states.append({
-            "source_id": source_id,
-            "status": status,
-            "event_id": event["event_id"],
-            "eta_utc": format_utc(event["eta_utc"]),
-            "last_received_at_utc": format_utc(received_at),
-            "age_minutes": age_minutes,
-        })
+        states.append(
+            {
+                "source_id": source_id,
+                "status": status,
+                "event_id": event["event_id"],
+                "eta_utc": format_utc(event["eta_utc"]),
+                "last_received_at_utc": format_utc(received_at),
+                "age_minutes": age_minutes,
+            }
+        )
         winners[source_id] = event
     return states, winners
 
@@ -163,12 +169,14 @@ def out_of_order_issues(events):
         for event in source_events:
             event_time = parse_utc(event["event_time_utc"])
             if newest_time is not None and event_time < newest_time:
-                issues.append({
-                    "code": "OUT_OF_ORDER",
-                    "event_id": event["event_id"],
-                    "source_id": source_id,
-                    "newer_event_id": newest_event["event_id"],
-                })
+                issues.append(
+                    {
+                        "code": "OUT_OF_ORDER",
+                        "event_id": event["event_id"],
+                        "source_id": source_id,
+                        "newer_event_id": newest_event["event_id"],
+                    }
+                )
             elif newest_time is None or event_time > newest_time:
                 newest_time = event_time
                 newest_event = event
@@ -178,27 +186,33 @@ def out_of_order_issues(events):
 def identity_issues(rejected, duplicate_counts, collisions, port_call_id):
     issues = []
     for event_id, count in duplicate_counts.items():
-        issues.append({
-            "code": "EXACT_DUPLICATE",
-            "event_id": event_id,
-            "duplicate_occurrences": count,
-        })
+        issues.append(
+            {
+                "code": "EXACT_DUPLICATE",
+                "event_id": event_id,
+                "duplicate_occurrences": count,
+            }
+        )
     for event_id, count in collisions.items():
-        issues.append({
-            "code": "ID_COLLISION",
-            "event_id": event_id,
-            "variant_count": count,
-            "action": "exclude_all_variants",
-        })
+        issues.append(
+            {
+                "code": "ID_COLLISION",
+                "event_id": event_id,
+                "variant_count": count,
+                "action": "exclude_all_variants",
+            }
+        )
     for item in rejected:
         if item.get("port_call_id") not in (None, port_call_id):
             continue
         issue = {"code": item["reason_code"], "event_id": item.get("event_id")}
         if item["reason_code"] == "INVALID_SCHEMA_VERSION":
-            issue.update({
-                "schema_version": item["raw_payload"].get("schema_version"),
-                "expected": "v1",
-            })
+            issue.update(
+                {
+                    "schema_version": item["raw_payload"].get("schema_version"),
+                    "expected": "v1",
+                }
+            )
         issues.append(issue)
     return issues
 
@@ -210,13 +224,15 @@ def delivery_issues(candidates, threshold):
         event_time = parse_utc(event["event_time_utc"])
         delay = int((received_at - event_time).total_seconds() // 60)
         if delay > threshold:
-            issues.append({
-                "code": "DELAYED_DELIVERY",
-                "event_id": event["event_id"],
-                "source_id": event["source_id"],
-                "delay_minutes": delay,
-                "threshold_minutes": threshold,
-            })
+            issues.append(
+                {
+                    "code": "DELAYED_DELIVERY",
+                    "event_id": event["event_id"],
+                    "source_id": event["source_id"],
+                    "delay_minutes": delay,
+                    "threshold_minutes": threshold,
+                }
+            )
     return issues
 
 
@@ -224,15 +240,17 @@ def stale_source_issues(source_states, sources):
     issues = []
     for state in source_states:
         if state["status"] == "STALE":
-            issues.append({
-                "code": "STALE_SOURCE",
-                "source_id": state["source_id"],
-                "last_received_at_utc": state["last_received_at_utc"],
-                "age_minutes": state["age_minutes"],
-                "threshold_minutes": sources[state["source_id"]][
-                    "freshness_minutes"
-                ],
-            })
+            issues.append(
+                {
+                    "code": "STALE_SOURCE",
+                    "source_id": state["source_id"],
+                    "last_received_at_utc": state["last_received_at_utc"],
+                    "age_minutes": state["age_minutes"],
+                    "threshold_minutes": sources[state["source_id"]][
+                        "freshness_minutes"
+                    ],
+                }
+            )
     return issues
 
 
@@ -240,7 +258,7 @@ def conflict_issues(source_states, winners, threshold, port_call_id):
     issues = []
     active = [state for state in source_states if state["status"] == "ACTIVE"]
     for index, left in enumerate(active):
-        for right in active[index + 1:]:
+        for right in active[index + 1 :]:
             difference = abs(
                 parse_utc(winners[left["source_id"]]["eta_utc"])
                 - parse_utc(winners[right["source_id"]]["eta_utc"])
@@ -248,49 +266,66 @@ def conflict_issues(source_states, winners, threshold, port_call_id):
             difference_minutes = int(difference.total_seconds() // 60)
             if difference_minutes > threshold:
                 pair = sorted((left["source_id"], right["source_id"]))
-                issues.append({
-                    "code": "CONFLICT",
-                    "port_call_id": port_call_id,
-                    "sources": pair,
-                    "eta_values_utc": [
-                        format_utc(winners[source_id]["eta_utc"]) for source_id in pair
-                    ],
-                    "difference_minutes": difference_minutes,
-                    "threshold_minutes": threshold,
-                })
+                issues.append(
+                    {
+                        "code": "CONFLICT",
+                        "port_call_id": port_call_id,
+                        "sources": pair,
+                        "eta_values_utc": [
+                            format_utc(winners[source_id]["eta_utc"])
+                            for source_id in pair
+                        ],
+                        "difference_minutes": difference_minutes,
+                        "threshold_minutes": threshold,
+                    }
+                )
     return issues
 
 
-def build_issues(rejected, duplicate_counts, collisions, candidates,
-                 source_states, winners, rules, port_call_id):
+def build_issues(
+    rejected,
+    duplicate_counts,
+    collisions,
+    candidates,
+    source_states,
+    winners,
+    rules,
+    port_call_id,
+):
     issues = identity_issues(rejected, duplicate_counts, collisions, port_call_id)
-    issues.extend(delivery_issues(
-        candidates, rules["quality_thresholds"]["delayed_delivery_minutes"]
-    ))
+    issues.extend(
+        delivery_issues(
+            candidates, rules["quality_thresholds"]["delayed_delivery_minutes"]
+        )
+    )
     issues.extend(out_of_order_issues(candidates))
     issues.extend(stale_source_issues(source_states, rules["sources"]))
-    issues.extend(conflict_issues(
-        source_states, winners, rules["quality_thresholds"]["conflict_minutes"],
-        port_call_id,
-    ))
+    issues.extend(
+        conflict_issues(
+            source_states,
+            winners,
+            rules["quality_thresholds"]["conflict_minutes"],
+            port_call_id,
+        )
+    )
     return sorted(
         issues,
         key=lambda issue: (
-            issue["code"], issue.get("event_id", ""), issue.get("source_id", "")
+            issue["code"],
+            issue.get("event_id", ""),
+            issue.get("source_id", ""),
         ),
     )
 
 
 def reconcile_port_call(events, rejected, sources, rules, port_call_id):
     events = [event for event in events if event.get("port_call_id") == port_call_id]
-    rejected = [
-        item for item in rejected
-        if item.get("port_call_id") == port_call_id
-    ]
+    rejected = [item for item in rejected if item.get("port_call_id") == port_call_id]
     as_of = rules["as_of"]
     unique_events, duplicate_counts, collisions = group_events(events, port_call_id)
     candidates = [
-        event for event in unique_events
+        event
+        for event in unique_events
         if event["event_id"] not in collisions
         and parse_utc(event["received_at_utc"]) <= as_of
     ]
@@ -303,7 +338,8 @@ def reconcile_port_call(events, rejected, sources, rules, port_call_id):
             sources[state["source_id"]]["priority"] for state in active_states
         )
         highest = [
-            state for state in active_states
+            state
+            for state in active_states
             if sources[state["source_id"]]["priority"] == highest_priority
         ]
         winning_state = min(
@@ -336,13 +372,20 @@ def reconcile_port_call(events, rejected, sources, rules, port_call_id):
         }
 
     issues = build_issues(
-        rejected, duplicate_counts, collisions, candidates, source_states,
-        winners, rules, port_call_id,
+        rejected,
+        duplicate_counts,
+        collisions,
+        candidates,
+        source_states,
+        winners,
+        rules,
+        port_call_id,
     )
     unique_count = len(unique_events)
     collision_variants = sum(collisions.values())
     after_cutoff = sum(
-        1 for event in unique_events
+        1
+        for event in unique_events
         if event["event_id"] not in collisions
         and parse_utc(event["received_at_utc"]) > as_of
     )
@@ -414,11 +457,14 @@ def save_result(cursor, result, events):
                as_of_utc = EXCLUDED.as_of_utc,
                rules_version = EXCLUDED.rules_version""",
         (
-            result["port_call_id"], state["status"],
+            result["port_call_id"],
+            state["status"],
             parse_utc(state["eta_utc"]) if state["eta_utc"] else None,
-            state["source_id"], state["event_id"],
+            state["source_id"],
+            state["event_id"],
             any(issue["code"] == "CONFLICT" for issue in result["issues"]),
-            parse_utc(result["as_of_utc"]), result["rules_version"],
+            parse_utc(result["as_of_utc"]),
+            result["rules_version"],
         ),
     )
 
@@ -433,7 +479,8 @@ def save_result(cursor, result, events):
         event_id = issue.get("event_id")
         event = event_by_id.get(event_id)
         details = {
-            key: value for key, value in issue.items()
+            key: value
+            for key, value in issue.items()
             if key not in {"code", "event_id"}
         }
         details["port_call_id"] = result["port_call_id"]

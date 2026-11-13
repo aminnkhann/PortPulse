@@ -212,10 +212,8 @@ class PipelineVerificationTests(unittest.TestCase):
         with psycopg.connect(self.database_url) as connection:
             connection.execute(
                 sql.SQL(
-                    "INSERT INTO {}.portnet_eta_observation "
-                    "VALUES (1, 'call', 'VUOS')"
-                )
-                .format(sql.Identifier(self.schema_name))
+                    "INSERT INTO {}.portnet_eta_observation VALUES (1, 'call', 'VUOS')"
+                ).format(sql.Identifier(self.schema_name))
             )
 
         with self.assertRaisesRegex(RuntimeError, "metrics do not match"):

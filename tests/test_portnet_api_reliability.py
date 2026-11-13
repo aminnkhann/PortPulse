@@ -44,12 +44,24 @@ EXPECTED_FIRST_RUN = {
     "new_observation_rows_inserted": 6,
 }
 EXPECTED_LATEST = [
-    ("portnet:1001", "VUOS", "portnet:1001:VUOS:2026-11-10T08:00:00.000000Z",
-     datetime(2026, 11, 10, 13, 0, tzinfo=timezone.utc)),
-    ("portnet:2002", "KATA", "portnet:2002:KATA:2026-11-10T07:30:00.000000Z",
-     datetime(2026, 11, 10, 13, 30, tzinfo=timezone.utc)),
-    ("portnet:3003", "VUOS", "portnet:3003:VUOS:2026-11-10T08:00:00.000000Z",
-     datetime(2026, 11, 10, 15, 0, tzinfo=timezone.utc)),
+    (
+        "portnet:1001",
+        "VUOS",
+        "portnet:1001:VUOS:2026-11-10T08:00:00.000000Z",
+        datetime(2026, 11, 10, 13, 0, tzinfo=timezone.utc),
+    ),
+    (
+        "portnet:2002",
+        "KATA",
+        "portnet:2002:KATA:2026-11-10T07:30:00.000000Z",
+        datetime(2026, 11, 10, 13, 30, tzinfo=timezone.utc),
+    ),
+    (
+        "portnet:3003",
+        "VUOS",
+        "portnet:3003:VUOS:2026-11-10T08:00:00.000000Z",
+        datetime(2026, 11, 10, 15, 0, tzinfo=timezone.utc),
+    ),
 ]
 EXPECTED_QUALITY = (6, 20, 64, 10, 3)
 
@@ -96,14 +108,22 @@ class PortnetApiReliabilityTests(unittest.TestCase):
         results = []
         with (
             patch.object(
-                ingest_portnet, "fetch_json",
+                ingest_portnet,
+                "fetch_json",
                 side_effect=lambda _: generate_portnet_response(),
             ),
             patch.object(ingest_portnet, "datetime", FixedDateTime),
-            patch.object(sys, "argv", [
-                "ingest_portnet", "--date", "2026-11-10",
-                "--database-url", self.database_url,
-            ]),
+            patch.object(
+                sys,
+                "argv",
+                [
+                    "ingest_portnet",
+                    "--date",
+                    "2026-11-10",
+                    "--database-url",
+                    self.database_url,
+                ],
+            ),
         ):
             for _ in range(10):
                 output = StringIO()
@@ -111,10 +131,16 @@ class PortnetApiReliabilityTests(unittest.TestCase):
                     ingest_portnet.main()
                 results.append(json.loads(output.getvalue()))
 
-        self.assertEqual(results[0], {**EXPECTED_FIRST_RUN,
-                                      "record_origin": "live_api",
-                                      "source": "Portnet V1", "date": "2026-11-10",
-                                      "port": "ALL"})
+        self.assertEqual(
+            results[0],
+            {
+                **EXPECTED_FIRST_RUN,
+                "record_origin": "live_api",
+                "source": "Portnet V1",
+                "date": "2026-11-10",
+                "port": "ALL",
+            },
+        )
         self.assertEqual(len(results), 10)
         for replay in results[1:]:
             self.assertEqual(replay["new_observation_rows_inserted"], 0)
@@ -130,22 +156,29 @@ class PortnetApiReliabilityTests(unittest.TestCase):
         shutil.copy(ROOT / "dbt/profiles.example.yml", profile_dir / "profiles.yml")
         connection_settings = conninfo_to_dict(self.database_url)
         env = os.environ.copy()
-        env.update({
-            "DBT_HOST": connection_settings["host"],
-            "DBT_PORT": connection_settings["port"],
-            "DBT_USER": connection_settings["user"],
-            "DBT_PASSWORD": connection_settings["password"],
-            "DBT_DATABASE": self.database_name,
-            "DBT_SCHEMA": "analytics",
-        })
+        env.update(
+            {
+                "DBT_HOST": connection_settings["host"],
+                "DBT_PORT": connection_settings["port"],
+                "DBT_USER": connection_settings["user"],
+                "DBT_PASSWORD": connection_settings["password"],
+                "DBT_DATABASE": self.database_name,
+                "DBT_SCHEMA": "analytics",
+            }
+        )
         with tempfile.TemporaryDirectory(prefix="portpulse-dbt-run-") as temp_dir:
             temp = Path(temp_dir)
             command = [
-                shutil.which("dbt") or "dbt", "build",
-                "--project-dir", str(ROOT / "dbt"),
-                "--profiles-dir", str(profile_dir),
-                "--log-path", str(temp / "logs"),
-                "--target-path", str(temp / "target"),
+                shutil.which("dbt") or "dbt",
+                "build",
+                "--project-dir",
+                str(ROOT / "dbt"),
+                "--profiles-dir",
+                str(profile_dir),
+                "--log-path",
+                str(temp / "logs"),
+                "--target-path",
+                str(temp / "target"),
             ]
             built = subprocess.run(command, env=env, capture_output=True, text=True)
             self.assertEqual(built.returncode, 0, built.stdout + built.stderr)
@@ -170,8 +203,9 @@ class PortnetApiReliabilityTests(unittest.TestCase):
             ).fetchone()[0]
         self.assertEqual(latest, EXPECTED_LATEST)
         self.assertEqual(quality, EXPECTED_QUALITY)
-        self.assertEqual(reasons, [("INVALID_PORTNET_CALL", 10),
-                                   ("INVALID_PORTNET_ETA", 10)])
+        self.assertEqual(
+            reasons, [("INVALID_PORTNET_CALL", 10), ("INVALID_PORTNET_ETA", 10)]
+        )
         self.assertEqual(stored_observations, 6)
 
 

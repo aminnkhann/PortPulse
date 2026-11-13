@@ -139,12 +139,8 @@ def verify_pipeline(
                         f"Required dbt model is missing: {dbt_schema}.{model_name}"
                     )
 
-            staging_rows = _count_relation(
-                cursor, dbt_schema, "stg_portnet_eta"
-            )
-            latest_rows = _count_relation(
-                cursor, dbt_schema, "mart_portnet_latest_eta"
-            )
+            staging_rows = _count_relation(cursor, dbt_schema, "stg_portnet_eta")
+            latest_rows = _count_relation(cursor, dbt_schema, "mart_portnet_latest_eta")
 
             cursor.execute(
                 sql.SQL(
@@ -195,12 +191,8 @@ def verify_pipeline(
                 )
             )
             expected_metrics = {
-                "accepted_observations": source_counts[
-                    "portnet_eta_observation"
-                ],
-                "rejected_observations": source_counts[
-                    "portnet_eta_rejected_event"
-                ],
+                "accepted_observations": source_counts["portnet_eta_observation"],
+                "rejected_observations": source_counts["portnet_eta_rejected_event"],
                 "duplicate_issue_rows": duplicate_issues,
                 "collision_issue_rows": collision_issues,
                 "latest_eta_records": latest_rows,
@@ -230,8 +222,7 @@ def verify_pipeline(
             )
             if cursor.fetchone()[0]:
                 raise RuntimeError(
-                    "mart_portnet_latest_eta has multiple rows for a port call "
-                    "and area"
+                    "mart_portnet_latest_eta has multiple rows for a port call and area"
                 )
 
     summary = {

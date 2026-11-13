@@ -145,11 +145,14 @@ class DatabaseIntegrationTests(unittest.TestCase):
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """,
                 (
-                    event["event_id"], event["port_call_id"], event["source_id"],
+                    event["event_id"],
+                    event["port_call_id"],
+                    event["source_id"],
                     ingest_fixture.timestamp(event, "event_time_utc"),
                     ingest_fixture.received_time(event),
                     ingest_fixture.timestamp(event, "eta_utc"),
-                    event["schema_version"], ingest_fixture.canonical_hash(event),
+                    event["schema_version"],
+                    ingest_fixture.canonical_hash(event),
                     Jsonb(event),
                 ),
             )
@@ -182,18 +185,20 @@ class DatabaseIntegrationTests(unittest.TestCase):
         after = datetime.now(timezone.utc)
 
         with psycopg.connect(self.database_url) as connection:
-            raw_count = connection.execute(
-                "SELECT count(*) FROM raw_event"
-            ).fetchone()[0]
+            raw_count = connection.execute("SELECT count(*) FROM raw_event").fetchone()[
+                0
+            ]
             rejected_count = connection.execute(
                 "SELECT count(*) FROM rejected_event"
             ).fetchone()[0]
             port_call_count = connection.execute(
                 "SELECT count(*) FROM port_call"
             ).fetchone()[0]
-            issues = dict(connection.execute(
-                "SELECT issue_code, count(*) FROM quality_issue GROUP BY issue_code"
-            ).fetchall())
+            issues = dict(
+                connection.execute(
+                    "SELECT issue_code, count(*) FROM quality_issue GROUP BY issue_code"
+                ).fetchall()
+            )
             timestamps = connection.execute(
                 "SELECT received_at_utc, ingested_at_utc FROM raw_event"
             ).fetchall()
@@ -207,7 +212,6 @@ class DatabaseIntegrationTests(unittest.TestCase):
             self.assertNotEqual(received, ingested)
             self.assertGreaterEqual(ingested, before)
             self.assertLessEqual(ingested, after)
-
 
 
 if __name__ == "__main__":

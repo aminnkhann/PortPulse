@@ -25,21 +25,32 @@ class InjectedPortnetReliabilityTests(unittest.TestCase):
         self.assertNotIn("mmsi", rejected[0]["raw_payload"])
 
     def test_injected_invalid_eta_is_quarantined(self):
-        call = {"portCallId": 5, "portAreaDetails": [{
-            "portAreaCode": "VUOS",
-            "eta": "not-a-timestamp",
-            "etaTimestamp": "2026-11-10T07:00:00Z",
-        }]}
+        call = {
+            "portCallId": 5,
+            "portAreaDetails": [
+                {
+                    "portAreaCode": "VUOS",
+                    "eta": "not-a-timestamp",
+                    "etaTimestamp": "2026-11-10T07:00:00Z",
+                }
+            ],
+        }
         events, rejected, _ = ingest_portnet.normalize_data([call], RECEIVED_AT)
         self.assertEqual(events, [])
         self.assertEqual(rejected[0]["reason_code"], "INVALID_PORTNET_ETA")
 
     def test_injected_missing_area_is_quarantined_when_identity_is_ambiguous(self):
-        call = {"portCallId": 5, "portAreaDetails": [
-            {"eta": "2026-11-10T12:00:00Z", "etaTimestamp": "2026-11-10T07:00:00Z"},
-            {"portAreaCode": "VUOS", "eta": "2026-11-10T13:00:00Z",
-             "etaTimestamp": "2026-11-10T07:30:00Z"},
-        ]}
+        call = {
+            "portCallId": 5,
+            "portAreaDetails": [
+                {"eta": "2026-11-10T12:00:00Z", "etaTimestamp": "2026-11-10T07:00:00Z"},
+                {
+                    "portAreaCode": "VUOS",
+                    "eta": "2026-11-10T13:00:00Z",
+                    "etaTimestamp": "2026-11-10T07:30:00Z",
+                },
+            ],
+        }
         events, rejected, _ = ingest_portnet.normalize_data([call], RECEIVED_AT)
         self.assertEqual(len(events), 1)
         self.assertEqual(rejected[0]["reason_code"], "AMBIGUOUS_PORT_AREA")
@@ -75,23 +86,33 @@ class InjectedPortnetPostgresReliabilityTests(unittest.TestCase):
                 )
 
     def _event(self):
-        call = {"portCallId": 905, "portAreaDetails": [{
-            "portAreaCode": "VUOS", "eta": "2026-11-10T12:00:00Z",
-            "etaTimestamp": "2026-11-10T07:00:00Z",
-        }]}
+        call = {
+            "portCallId": 905,
+            "portAreaDetails": [
+                {
+                    "portAreaCode": "VUOS",
+                    "eta": "2026-11-10T12:00:00Z",
+                    "etaTimestamp": "2026-11-10T07:00:00Z",
+                }
+            ],
+        }
         return ingest_portnet.normalize_data([call], RECEIVED_AT)[0][0]
 
     def test_injected_replay_stores_one_observation_and_logs_repeat(self):
         event = self._event()
         first = ingest_portnet.store_observations(
-            [event], [], self.database_url,
+            [event],
+            [],
+            self.database_url,
         )
         replay = {
             **event,
             "received_at_utc": "2026-11-10T08:05:00.000000Z",
         }
         second = ingest_portnet.store_observations(
-            [replay], [], self.database_url,
+            [replay],
+            [],
+            self.database_url,
         )
         self.assertEqual(first, (1, 0, 0, 1))
         self.assertEqual(second, (1, 1, 0, 0))
@@ -103,12 +124,17 @@ class InjectedPortnetPostgresReliabilityTests(unittest.TestCase):
             ).fetchone()
         self.assertEqual(counts, (1, 1))
 
-
     def test_injected_invalid_eta_is_persisted_in_quarantine(self):
-        call = {"portCallId": 906, "portAreaDetails": [{
-            "portAreaCode": "VUOS", "eta": "bad-time",
-            "etaTimestamp": "2026-11-10T07:00:00Z",
-        }]}
+        call = {
+            "portCallId": 906,
+            "portAreaDetails": [
+                {
+                    "portAreaCode": "VUOS",
+                    "eta": "bad-time",
+                    "etaTimestamp": "2026-11-10T07:00:00Z",
+                }
+            ],
+        }
         events, rejected, _ = ingest_portnet.normalize_data([call], RECEIVED_AT)
         ingest_portnet.store_observations(events, rejected, self.database_url)
         with psycopg.connect(self.database_url) as connection:
@@ -128,7 +154,9 @@ class InjectedPortnetPostgresReliabilityTests(unittest.TestCase):
             },
         }
         result = ingest_portnet.store_observations(
-            [event, changed], [], self.database_url,
+            [event, changed],
+            [],
+            self.database_url,
         )
         self.assertEqual(result, (2, 0, 1, 2))
         with psycopg.connect(self.database_url) as connection:

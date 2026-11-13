@@ -21,7 +21,6 @@ from scripts.reconcile import load_rules, reconcile_database, reconcile_port_cal
 ROOT = Path(__file__).resolve().parents[1]
 
 
-
 class ReconciliationTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -66,7 +65,6 @@ class ReconciliationTests(unittest.TestCase):
         result = self.reconcile(self.valid + [future])
         self.assertEqual(result["trusted_state"]["event_id"], "COORD-DELAYED-01")
         self.assertEqual(result["counts"]["events_after_as_of_utc"], 1)
-
 
 
 class ReconciliationDatabaseTests(unittest.TestCase):
@@ -118,15 +116,17 @@ class ReconciliationDatabaseTests(unittest.TestCase):
             issue_counts[issue["issue_code"]] = (
                 issue_counts.get(issue["issue_code"], 0) + 1
             )
-        self.assertEqual(issue_counts, {
-            "CONFLICT": 1,
-            "DELAYED_DELIVERY": 3,
-            "EXACT_DUPLICATE": 2,
-            "ID_COLLISION": 1,
-            "OUT_OF_ORDER": 2,
-            "STALE_SOURCE": 1,
-        })
-
+        self.assertEqual(
+            issue_counts,
+            {
+                "CONFLICT": 1,
+                "DELAYED_DELIVERY": 3,
+                "EXACT_DUPLICATE": 2,
+                "ID_COLLISION": 1,
+                "OUT_OF_ORDER": 2,
+                "STALE_SOURCE": 1,
+            },
+        )
 
 
 if __name__ == "__main__":

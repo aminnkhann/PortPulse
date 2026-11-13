@@ -16,7 +16,9 @@ from scripts.event_model import PortCallEvent
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / "fixtures" / "port_call_v1.jsonl"
-DEFAULT_DATABASE_URL = "postgresql://portpulse:portpulse_local_only@127.0.0.1:5432/portpulse"
+DEFAULT_DATABASE_URL = (
+    "postgresql://portpulse:portpulse_local_only@127.0.0.1:5432/portpulse"
+)
 HASH_FIELDS = (
     "event_id",
     "port_call_id",
@@ -72,28 +74,32 @@ def read_fixture():
         try:
             payload = json.loads(line)
         except json.JSONDecodeError as error:
-            rejected.append({
-                "event_id": None,
-                "port_call_id": None,
-                "received_at_utc": None,
-                "reason_code": "INVALID_JSON",
-                "raw_payload": line,
-                "details": {"message": error.msg},
-            })
+            rejected.append(
+                {
+                    "event_id": None,
+                    "port_call_id": None,
+                    "received_at_utc": None,
+                    "reason_code": "INVALID_JSON",
+                    "raw_payload": line,
+                    "details": {"message": error.msg},
+                }
+            )
             continue
 
         try:
             PortCallEvent.model_validate(payload)
         except ValidationError as error:
             reason, field = validation_reason(error)
-            rejected.append({
-                "event_id": text_field(payload, "event_id"),
-                "port_call_id": text_field(payload, "port_call_id"),
-                "received_at_utc": received_time(payload),
-                "reason_code": reason,
-                "raw_payload": payload,
-                "details": {"field": field, "message": error.errors()[0]["msg"]},
-            })
+            rejected.append(
+                {
+                    "event_id": text_field(payload, "event_id"),
+                    "port_call_id": text_field(payload, "port_call_id"),
+                    "received_at_utc": received_time(payload),
+                    "reason_code": reason,
+                    "raw_payload": payload,
+                    "details": {"field": field, "message": error.errors()[0]["msg"]},
+                }
+            )
             continue
 
         valid.append(payload)
@@ -125,7 +131,8 @@ def group_events(events):
         for payload_hash, attempts in sorted(variants.items()):
             attempts.sort(
                 key=lambda event: (
-                    event["received_at_utc"], json.dumps(event, sort_keys=True)
+                    event["received_at_utc"],
+                    json.dumps(event, sort_keys=True),
                 )
             )
             unique_events.append((attempts[0], payload_hash))
@@ -153,10 +160,17 @@ def insert_rejection(cursor, item):
         )
         """,
         (
-            item["event_id"], item["port_call_id"], item["received_at_utc"],
-            item["reason_code"], Jsonb(item["raw_payload"]), Jsonb(item["details"]),
-            item["reason_code"], item["event_id"], item["received_at_utc"],
-            Jsonb(item["raw_payload"]), Jsonb(item["details"]),
+            item["event_id"],
+            item["port_call_id"],
+            item["received_at_utc"],
+            item["reason_code"],
+            Jsonb(item["raw_payload"]),
+            Jsonb(item["details"]),
+            item["reason_code"],
+            item["event_id"],
+            item["received_at_utc"],
+            Jsonb(item["raw_payload"]),
+            Jsonb(item["details"]),
         ),
     )
 
@@ -176,20 +190,23 @@ def insert_issue(cursor, issue_code, event_id, received_at, raw_payload, details
         )
         """,
         (
-            issue_code, event_id, details.get("port_call_id"), received_at,
-            Jsonb(raw_payload) if raw_payload is not None else None, Jsonb(details),
-            issue_code, event_id, received_at, Jsonb(details),
+            issue_code,
+            event_id,
+            details.get("port_call_id"),
+            received_at,
+            Jsonb(raw_payload) if raw_payload is not None else None,
+            Jsonb(details),
+            issue_code,
+            event_id,
+            received_at,
+            Jsonb(details),
         ),
     )
 
 
-def store_fixture(
-    valid, rejected, record_existing_duplicates=False, database_url=None
-):
+def store_fixture(valid, rejected, record_existing_duplicates=False, database_url=None):
     unique_events, duplicate_attempts, collisions = group_events(valid)
-    database_url = database_url or os.environ.get(
-        "DATABASE_URL", DEFAULT_DATABASE_URL
-    )
+    database_url = database_url or os.environ.get("DATABASE_URL", DEFAULT_DATABASE_URL)
     existing_duplicate_count = 0
 
     with psycopg.connect(database_url) as connection:
@@ -247,10 +264,15 @@ def store_fixture(
                     ON CONFLICT (event_id, canonical_payload_sha256) DO NOTHING
                     """,
                     (
-                        event["event_id"], event["port_call_id"], event["source_id"],
-                        timestamp(event, "event_time_utc"), received_time(event),
+                        event["event_id"],
+                        event["port_call_id"],
+                        event["source_id"],
+                        timestamp(event, "event_time_utc"),
+                        received_time(event),
                         datetime.fromisoformat(event["eta_utc"].replace("Z", "+00:00")),
-                        event["schema_version"], payload_hash, Jsonb(event),
+                        event["schema_version"],
+                        payload_hash,
+                        Jsonb(event),
                     ),
                 )
 

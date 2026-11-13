@@ -149,7 +149,7 @@ class DatabaseIntegrationTests(unittest.TestCase):
                     event["port_call_id"],
                     event["source_id"],
                     ingest_fixture.timestamp(event, "event_time_utc"),
-                    ingest_fixture.received_time(event),
+                    ingest_fixture.timestamp(event, "received_at_utc"),
                     ingest_fixture.timestamp(event, "eta_utc"),
                     event["schema_version"],
                     ingest_fixture.canonical_hash(event),

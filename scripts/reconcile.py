@@ -3,7 +3,7 @@
 import argparse
 import json
 import os
-from collections import defaultdict
+from collections import Counter, defaultdict
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -66,47 +66,15 @@ def load_rules(path=RULES_FILE):
     return rules
 
 
-def group_events(events, port_call_id):
-    groups = defaultdict(lambda: defaultdict(list))
-    for event in events:
-        if event.get("port_call_id") == port_call_id:
-            groups[event["event_id"]][ingest_fixture.canonical_hash(event)].append(
-                event
-            )
-
-    unique_events = []
-    duplicate_counts = {}
-    collisions = {}
-    for event_id, variants in sorted(groups.items()):
-        if len(variants) > 1:
-            collisions[event_id] = len(variants)
-        for attempts in variants.values():
-            attempts.sort(
-                key=lambda event: (
-                    parse_utc(event["received_at_utc"]),
-                    json.dumps(event, sort_keys=True),
-                )
-            )
-            unique_events.append(attempts[0])
-            if len(attempts) > 1:
-                duplicate_counts[event_id] = (
-                    duplicate_counts.get(event_id, 0) + len(attempts) - 1
-                )
-    return unique_events, duplicate_counts, collisions
-
-
 def latest_event(events):
-    newest_time = max(parse_utc(event["event_time_utc"]) for event in events)
-    newest = [
-        event for event in events if parse_utc(event["event_time_utc"]) == newest_time
-    ]
-    newest_received = max(parse_utc(event["received_at_utc"]) for event in newest)
-    newest = [
-        event
-        for event in newest
-        if parse_utc(event["received_at_utc"]) == newest_received
-    ]
-    return min(newest, key=lambda event: event["event_id"])
+    return min(
+        events,
+        key=lambda event: (
+            -parse_utc(event["event_time_utc"]).timestamp(),
+            -parse_utc(event["received_at_utc"]).timestamp(),
+            event["event_id"],
+        ),
+    )
 
 
 def build_source_states(events, sources, as_of):
@@ -321,8 +289,19 @@ def build_issues(
 def reconcile_port_call(events, rejected, sources, rules, port_call_id):
     events = [event for event in events if event.get("port_call_id") == port_call_id]
     rejected = [item for item in rejected if item.get("port_call_id") == port_call_id]
+    return _reconcile_port_call(events, rejected, sources, rules, port_call_id)
+
+
+def _reconcile_port_call(events, rejected, sources, rules, port_call_id):
     as_of = rules["as_of"]
-    unique_events, duplicate_counts, collisions = group_events(events, port_call_id)
+    grouped_events, duplicate_attempts, collision_hashes = ingest_fixture.group_events(
+        events
+    )
+    unique_events = [event for event, _ in grouped_events]
+    duplicate_counts = Counter(event["event_id"] for event, _, _ in duplicate_attempts)
+    collisions = {
+        event_id: len(hashes) for event_id, hashes in collision_hashes.items()
+    }
     candidates = [
         event
         for event in unique_events
@@ -334,21 +313,15 @@ def reconcile_port_call(events, rejected, sources, rules, port_call_id):
 
     winning_state = None
     if active_states:
-        highest_priority = max(
-            sources[state["source_id"]]["priority"] for state in active_states
-        )
-        highest = [
-            state
-            for state in active_states
-            if sources[state["source_id"]]["priority"] == highest_priority
-        ]
         winning_state = min(
-            highest,
+            active_states,
             key=lambda state: (
+                -sources[state["source_id"]]["priority"],
                 -parse_utc(winners[state["source_id"]]["event_time_utc"]).timestamp(),
                 state["event_id"],
             ),
         )
+        highest_priority = sources[winning_state["source_id"]]["priority"]
         trusted_state = {
             "status": "TRUSTED",
             "eta_utc": format_utc(winners[winning_state["source_id"]]["eta_utc"]),
@@ -468,11 +441,7 @@ def save_result(cursor, result, events):
         ),
     )
 
-    event_by_id = {
-        event["event_id"]: event
-        for event in events
-        if event.get("port_call_id") == result["port_call_id"]
-    }
+    event_by_id = {event["event_id"]: event for event in events}
     for issue in result["issues"]:
         if issue["code"] not in SAVED_ISSUE_CODES:
             continue
@@ -499,15 +468,35 @@ def reconcile_database(database_url, rules_path=RULES_FILE, as_of_utc=None):
             events, rejected, sources = database_inputs(cursor)
             if not events:
                 raise ValueError("raw_event is empty; ingest the fixture first")
-            if sources != rules["sources"]:
+            configured_sources = {
+                source_id: sources[source_id]
+                for source_id in rules["sources"]
+                if source_id in sources
+            }
+            legacy_sources = {"digitraffic", "portnet", "ais"}
+            if (
+                configured_sources != rules["sources"]
+                or set(sources) - set(rules["sources"]) - legacy_sources
+            ):
                 raise ValueError("database sources do not match the versioned rules")
-            port_call_ids = sorted({event["port_call_id"] for event in events})
+            events_by_call = defaultdict(list)
+            rejected_by_call = defaultdict(list)
+            for event in events:
+                events_by_call[event["port_call_id"]].append(event)
+            for item in rejected:
+                if item["port_call_id"] is not None:
+                    rejected_by_call[item["port_call_id"]].append(item)
+            port_call_ids = sorted(events_by_call)
             results = []
             for port_call_id in port_call_ids:
-                result = reconcile_port_call(
-                    events, rejected, rules["sources"], rules, port_call_id
+                result = _reconcile_port_call(
+                    events_by_call[port_call_id],
+                    rejected_by_call[port_call_id],
+                    rules["sources"],
+                    rules,
+                    port_call_id,
                 )
-                save_result(cursor, result, events)
+                save_result(cursor, result, events_by_call[port_call_id])
                 results.append(result)
     return results
 

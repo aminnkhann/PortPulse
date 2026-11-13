@@ -12,6 +12,11 @@ from pydantic import ValidationError
 from psycopg.types.json import Jsonb
 
 from scripts.event_model import PortCallEvent
+from scripts.event_storage import (
+    existing_hashes,
+    insert_quality_issue,
+    record_payload_hash,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -32,10 +37,6 @@ HASH_FIELDS = (
 def text_field(payload, name):
     value = payload.get(name) if isinstance(payload, dict) else None
     return value if isinstance(value, str) else None
-
-
-def received_time(payload):
-    return timestamp(payload, "received_at_utc")
 
 
 def timestamp(payload, field):
@@ -94,7 +95,7 @@ def read_fixture():
                 {
                     "event_id": text_field(payload, "event_id"),
                     "port_call_id": text_field(payload, "port_call_id"),
-                    "received_at_utc": received_time(payload),
+                    "received_at_utc": timestamp(payload, "received_at_utc"),
                     "reason_code": reason,
                     "raw_payload": payload,
                     "details": {"field": field, "message": error.errors()[0]["msg"]},
@@ -131,7 +132,7 @@ def group_events(events):
         for payload_hash, attempts in sorted(variants.items()):
             attempts.sort(
                 key=lambda event: (
-                    event["received_at_utc"],
+                    timestamp(event, "received_at_utc"),
                     json.dumps(event, sort_keys=True),
                 )
             )
@@ -176,31 +177,16 @@ def insert_rejection(cursor, item):
 
 
 def insert_issue(cursor, issue_code, event_id, received_at, raw_payload, details):
-    cursor.execute(
-        """
-        INSERT INTO quality_issue
-            (issue_code, event_id, port_call_id, received_at_utc, raw_payload, details)
-        SELECT %s, %s, %s, %s, %s, %s
-        WHERE NOT EXISTS (
-            SELECT 1 FROM quality_issue
-            WHERE issue_code = %s
-              AND event_id IS NOT DISTINCT FROM %s
-              AND received_at_utc IS NOT DISTINCT FROM %s
-              AND details = %s
-        )
-        """,
-        (
-            issue_code,
-            event_id,
-            details.get("port_call_id"),
-            received_at,
-            Jsonb(raw_payload) if raw_payload is not None else None,
-            Jsonb(details),
-            issue_code,
-            event_id,
-            received_at,
-            Jsonb(details),
-        ),
+    insert_quality_issue(
+        cursor,
+        "quality_issue",
+        issue_code,
+        event_id,
+        details.get("port_call_id"),
+        received_at,
+        raw_payload,
+        details,
+        deduplicate=True,
     )
 
 
@@ -211,31 +197,26 @@ def store_fixture(valid, rejected, record_existing_duplicates=False, database_ur
 
     with psycopg.connect(database_url) as connection:
         with connection.cursor() as cursor:
-            existing_hashes = defaultdict(set)
+            prior_hashes = defaultdict(set)
             if record_existing_duplicates:
                 event_ids = sorted({event["event_id"] for event, _ in unique_events})
-                if event_ids:
-                    cursor.execute(
-                        "SELECT event_id, canonical_payload_sha256 FROM raw_event "
-                        "WHERE event_id = ANY(%s)",
-                        (event_ids,),
-                    )
-                    for event_id, payload_hash in cursor.fetchall():
-                        existing_hashes[event_id].add(payload_hash)
+                prior_hashes = existing_hashes(cursor, "raw_event", event_ids)
 
             for item in rejected:
                 insert_rejection(cursor, item)
 
             for event, _ in unique_events:
                 payload_hash = canonical_hash(event)
-                prior_hashes = existing_hashes[event["event_id"]]
-                if record_existing_duplicates and payload_hash in prior_hashes:
+                identity = record_payload_hash(
+                    prior_hashes, event["event_id"], payload_hash
+                )
+                if record_existing_duplicates and identity == "duplicate":
                     existing_duplicate_count += 1
                     insert_issue(
                         cursor,
                         "EXACT_DUPLICATE",
                         event["event_id"],
-                        received_time(event),
+                        timestamp(event, "received_at_utc"),
                         event,
                         {
                             "canonical_payload_sha256": payload_hash,
@@ -243,11 +224,10 @@ def store_fixture(valid, rejected, record_existing_duplicates=False, database_ur
                             "port_call_id": event["port_call_id"],
                         },
                     )
-                elif record_existing_duplicates and prior_hashes:
+                elif record_existing_duplicates and identity == "collision":
                     collisions[event["event_id"]] = sorted(
-                        prior_hashes | {payload_hash}
+                        prior_hashes[event["event_id"]]
                     )
-                prior_hashes.add(payload_hash)
 
                 cursor.execute(
                     "INSERT INTO port_call (port_call_id) VALUES (%s) "
@@ -268,7 +248,7 @@ def store_fixture(valid, rejected, record_existing_duplicates=False, database_ur
                         event["port_call_id"],
                         event["source_id"],
                         timestamp(event, "event_time_utc"),
-                        received_time(event),
+                        timestamp(event, "received_at_utc"),
                         datetime.fromisoformat(event["eta_utc"].replace("Z", "+00:00")),
                         event["schema_version"],
                         payload_hash,
@@ -281,7 +261,7 @@ def store_fixture(valid, rejected, record_existing_duplicates=False, database_ur
                     cursor,
                     "EXACT_DUPLICATE",
                     event["event_id"],
-                    received_time(event),
+                    timestamp(event, "received_at_utc"),
                     event,
                     {
                         "canonical_payload_sha256": payload_hash,

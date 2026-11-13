@@ -4,7 +4,7 @@ import argparse
 import gzip
 import json
 import os
-from collections import Counter, defaultdict
+from collections import Counter
 from datetime import date, datetime, time, timezone
 from urllib.error import URLError
 from urllib.parse import quote, urlencode
@@ -16,6 +16,11 @@ from psycopg.types.json import Jsonb
 
 from scripts import ingest_fixture
 from scripts.event_model import MarineEtaEvent, PortnetEtaPayload
+from scripts.event_storage import (
+    existing_hashes,
+    insert_quality_issue,
+    record_payload_hash,
+)
 
 
 PORTNET_URL = "https://meri.digitraffic.fi/api/port-call/v1/port-calls"
@@ -237,7 +242,15 @@ def _normalize_eta_details(call_id, call, details, received_at):
 def normalize_data(port_calls, received_at_utc):
     events = []
     rejected = []
-    stats = Counter(portnet_call_records_received=len(port_calls))
+    stats = Counter(
+        portnet_call_records_received=len(port_calls),
+        rejected_portnet_call_records=0,
+        rejected_portnet_eta_details=0,
+        completed_portnet_calls_skipped=0,
+        portnet_calls_without_eta_skipped=0,
+        active_portnet_calls=0,
+        accepted_portnet_observations=0,
+    )
 
     for call in port_calls:
         identity, error = _validate_call(call, received_at_utc)
@@ -272,35 +285,20 @@ def normalize_data(port_calls, received_at_utc):
         stats["accepted_portnet_observations"] += len(accepted)
         stats["rejected_portnet_eta_details"] += len(invalid)
 
-    for key in (
-        "rejected_portnet_call_records",
-        "rejected_portnet_eta_details",
-        "completed_portnet_calls_skipped",
-        "portnet_calls_without_eta_skipped",
-        "active_portnet_calls",
-        "accepted_portnet_observations",
-    ):
-        stats.setdefault(key, 0)
     return events, rejected, dict(stats)
 
 
-def store_observations(events, rejected, database_url):
-    unique_events, duplicate_attempts, collisions = ingest_fixture.group_events(events)
+def store_observations(events, rejected, database_url, grouped_events=None):
+    unique_events, duplicate_attempts, collisions = (
+        grouped_events or ingest_fixture.group_events(events)
+    )
     event_ids = sorted({event["event_id"] for event, _ in unique_events})
     duplicate_count = len(duplicate_attempts)
     inserted_count = 0
 
     with psycopg.connect(database_url) as connection:
         with connection.cursor() as cursor:
-            existing = defaultdict(set)
-            if event_ids:
-                cursor.execute(
-                    "SELECT event_id, canonical_payload_sha256 "
-                    "FROM portnet_eta_observation WHERE event_id = ANY(%s)",
-                    (event_ids,),
-                )
-                for event_id, payload_hash in cursor.fetchall():
-                    existing[event_id].add(payload_hash)
+            existing = existing_hashes(cursor, "portnet_eta_observation", event_ids)
 
             for item in rejected:
                 cursor.execute(
@@ -311,7 +309,7 @@ def store_observations(events, rejected, database_url):
                     (
                         item.get("event_id"),
                         item.get("port_call_id"),
-                        ingest_fixture.received_time(item),
+                        ingest_fixture.timestamp(item, "received_at_utc"),
                         item["reason_code"],
                         Jsonb(item["raw_payload"]),
                         Jsonb(item["details"]),
@@ -320,24 +318,23 @@ def store_observations(events, rejected, database_url):
 
             for event, _ in unique_events:
                 payload_hash = ingest_fixture.canonical_hash(event)
-                previous = existing[event["event_id"]]
-                if payload_hash in previous:
+                identity = record_payload_hash(
+                    existing, event["event_id"], payload_hash
+                )
+                if identity == "duplicate":
                     duplicate_count += 1
-                    cursor.execute(
-                        """INSERT INTO portnet_eta_quality_issue
-                           (issue_code, event_id, port_call_id, received_at_utc,
-                            raw_payload, details)
-                           VALUES ('EXACT_DUPLICATE', %s, %s, %s, %s, %s)""",
-                        (
-                            event["event_id"],
-                            event["port_call_id"],
-                            ingest_fixture.received_time(event),
-                            Jsonb(event),
-                            Jsonb({"payload_sha256": payload_hash}),
-                        ),
+                    insert_quality_issue(
+                        cursor,
+                        "portnet_eta_quality_issue",
+                        "EXACT_DUPLICATE",
+                        event["event_id"],
+                        event["port_call_id"],
+                        ingest_fixture.timestamp(event, "received_at_utc"),
+                        event,
+                        {"payload_sha256": payload_hash},
                     )
-                elif previous:
-                    collisions[event["event_id"]] = sorted(previous | {payload_hash})
+                elif identity == "collision":
+                    collisions[event["event_id"]] = sorted(existing[event["event_id"]])
 
                 cursor.execute(
                     """INSERT INTO portnet_eta_observation
@@ -350,48 +347,39 @@ def store_observations(events, rejected, database_url):
                         event["port_call_id"],
                         event["source_payload"]["port_area_code"],
                         ingest_fixture.timestamp(event, "event_time_utc"),
-                        ingest_fixture.received_time(event),
+                        ingest_fixture.timestamp(event, "received_at_utc"),
                         ingest_fixture.timestamp(event, "eta_utc"),
                         payload_hash,
                         Jsonb(event),
                     ),
                 )
                 inserted_count += cursor.rowcount
-                previous.add(payload_hash)
 
             for event, payload_hash, _ in duplicate_attempts:
-                cursor.execute(
-                    """INSERT INTO portnet_eta_quality_issue
-                       (issue_code, event_id, port_call_id, received_at_utc,
-                        raw_payload, details)
-                       VALUES ('EXACT_DUPLICATE', %s, %s, %s, %s, %s)""",
-                    (
-                        event["event_id"],
-                        event["port_call_id"],
-                        ingest_fixture.received_time(event),
-                        Jsonb(event),
-                        Jsonb({"payload_sha256": payload_hash}),
-                    ),
+                insert_quality_issue(
+                    cursor,
+                    "portnet_eta_quality_issue",
+                    "EXACT_DUPLICATE",
+                    event["event_id"],
+                    event["port_call_id"],
+                    ingest_fixture.timestamp(event, "received_at_utc"),
+                    event,
+                    {"payload_sha256": payload_hash},
                 )
 
             for event_id, hashes in collisions.items():
                 event = next(
                     item for item, _ in unique_events if item["event_id"] == event_id
                 )
-                cursor.execute(
-                    """INSERT INTO portnet_eta_quality_issue
-                       (issue_code, event_id, port_call_id, details)
-                       VALUES ('ID_COLLISION', %s, %s, %s)""",
-                    (
-                        event_id,
-                        event["port_call_id"],
-                        Jsonb(
-                            {
-                                "payload_hashes": hashes,
-                                "variant_count": len(hashes),
-                            }
-                        ),
-                    ),
+                insert_quality_issue(
+                    cursor,
+                    "portnet_eta_quality_issue",
+                    "ID_COLLISION",
+                    event_id,
+                    event["port_call_id"],
+                    None,
+                    None,
+                    {"payload_hashes": hashes, "variant_count": len(hashes)},
                 )
 
     return len(unique_events), duplicate_count, len(collisions), inserted_count
@@ -422,7 +410,8 @@ def main():
     )
     port_calls = fetch_port_calls(args.port, args.date)
     events, rejected, metrics = normalize_data(port_calls, received_at)
-    _, duplicate_events, _ = ingest_fixture.group_events(events)
+    grouped_events = ingest_fixture.group_events(events)
+    _, duplicate_events, _ = grouped_events
     duplicate_calls = len(port_calls) - len(
         {json.dumps(call, sort_keys=True, separators=(",", ":")) for call in port_calls}
     )
@@ -430,6 +419,7 @@ def main():
         events,
         rejected,
         args.database_url,
+        grouped_events,
     )
     print(
         json.dumps(

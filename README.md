@@ -46,11 +46,13 @@ PortPulse is a local learning project, not a production maritime tracking servic
 - [Streaming CDC demonstration](docs/streaming_cdc.md)
 - [Metabase setup and troubleshooting](docs/metabase.md)
 
-Run Python tests and Ruff in the Airflow container:
+Run the Python tests in Airflow. Install the development-only Ruff dependency on your host to check formatting and lint:
 
 ```bash
 docker compose exec airflow python -m unittest discover -s tests -v
-docker compose exec airflow ruff check /opt/portpulse
+python -m pip install -r requirements-dev.txt
+ruff check .
+ruff format --check .
 ```
 
 Stop the services with `docker compose down`. This preserves database, Airflow, Kafka, and Metabase volumes.

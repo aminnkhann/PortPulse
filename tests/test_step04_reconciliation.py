@@ -15,7 +15,12 @@ from psycopg.conninfo import make_conninfo
 
 from scripts import ingest_fixture
 from scripts.query_state import query_port_call
-from scripts.reconcile import load_rules, reconcile_database, reconcile_port_call
+from scripts.reconcile import (
+    latest_event,
+    load_rules,
+    reconcile_database,
+    reconcile_port_call,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -65,6 +70,17 @@ class ReconciliationTests(unittest.TestCase):
         result = self.reconcile(self.valid + [future])
         self.assertEqual(result["trusted_state"]["event_id"], "COORD-DELAYED-01")
         self.assertEqual(result["counts"]["events_after_as_of_utc"], 1)
+
+    def test_latest_event_breaks_exact_timestamp_ties_by_smallest_id(self):
+        tied = [
+            {
+                "event_id": event_id,
+                "event_time_utc": "2026-01-15T10:00:00Z",
+                "received_at_utc": "2026-01-15T10:01:00Z",
+            }
+            for event_id in ("EVENT-Z", "EVENT-A", "EVENT-M")
+        ]
+        self.assertEqual(latest_event(tied)["event_id"], "EVENT-A")
 
 
 class ReconciliationDatabaseTests(unittest.TestCase):
@@ -127,6 +143,43 @@ class ReconciliationDatabaseTests(unittest.TestCase):
                 "STALE_SOURCE": 1,
             },
         )
+
+    def test_migration_009_keeps_source_rows_referenced_by_history_or_state(self):
+        with psycopg.connect(self.database_url) as connection:
+            connection.execute(
+                """INSERT INTO source_system (source_id, priority, freshness_minutes)
+                   VALUES ('digitraffic', 1, 120),
+                          ('portnet', 2, 120), ('ais', 1, 120)"""
+            )
+            connection.execute(
+                "INSERT INTO port_call (port_call_id) VALUES ('legacy-call')"
+            )
+            connection.execute(
+                """INSERT INTO raw_event
+                   (event_id, port_call_id, source_id, event_time_utc,
+                    received_at_utc, eta_utc, schema_version,
+                    canonical_payload_sha256, raw_payload)
+                   VALUES ('legacy-event', 'legacy-call', 'digitraffic',
+                           '2026-01-15T10:00:00Z', '2026-01-15T10:01:00Z',
+                           '2026-01-15T12:00:00Z', 'v1', repeat('0', 64), '{}')"""
+            )
+            connection.execute(
+                """INSERT INTO port_call_state
+                   (port_call_id, status, trusted_eta_utc, source_id,
+                    winning_event_id, as_of_utc, rules_version)
+                   VALUES ('legacy-call', 'TRUSTED', '2026-01-15T12:00:00Z',
+                           'ais', 'legacy-event', '2026-01-15T11:00:00Z', '1')"""
+            )
+            connection.execute(
+                (ROOT / "migrations/009_remove_unused_sources.sql").read_text(),
+                prepare=False,
+            )
+            remaining = connection.execute(
+                "SELECT source_id FROM source_system WHERE source_id IN "
+                "('digitraffic', 'portnet', 'ais') ORDER BY source_id"
+            ).fetchall()
+
+        self.assertEqual(remaining, [("ais",), ("digitraffic",)])
 
 
 if __name__ == "__main__":

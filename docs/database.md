@@ -9,7 +9,7 @@ On a fresh `postgres_data` volume, the official PostgreSQL image applies SQL fil
 Migration 008 creates the separate `stream_demo` source and CDC event tables and a publication limited to `stream_demo.port_eta_state`. On a fresh volume it is applied during initialization. For an existing volume, start Compose with the updated PostgreSQL settings and apply only migration 008 once:
 
 ```sh
-docker compose --profile streaming up --build -d db kafka kafka-connect
+docker compose up -d db kafka kafka-connect
 docker compose exec -T db psql -U portpulse -d portpulse \
   -f /docker-entrypoint-initdb.d/008_create_streaming_cdc_tables.sql
 ```

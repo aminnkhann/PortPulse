@@ -23,7 +23,9 @@ jobs:
         run: |
           docker compose up -d
           docker compose wait bi-setup
+          docker compose wait cdc-setup
           docker compose logs bi-setup
+          docker compose logs cdc-setup
       - name: Verify the read-only account against PostgreSQL
         run: python -m unittest discover -s tests -p 'test_metabase_permissions.py' -v
       - name: Re-run setup and confirm it completes again without duplicate resources

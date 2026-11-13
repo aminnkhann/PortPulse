@@ -92,7 +92,6 @@ services:
 
   kafka:
     image: apache/kafka:4.1.1
-    profiles: ["streaming"]
     depends_on:
       kafka-volume-init:
         condition: service_completed_successfully
@@ -124,7 +123,6 @@ services:
 
   kafka-connect:
     image: quay.io/debezium/connect:3.7.1.Final
-    profiles: ["streaming"]
     depends_on:
       db:
         condition: service_healthy
@@ -153,9 +151,21 @@ services:
       start_period: 30s
     restart: unless-stopped
 
+  cdc-setup:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+      kafka-connect:
+        condition: service_healthy
+    environment:
+      KAFKA_CONNECT_URL: http://kafka-connect:8083
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-admin}
+    command: ["python", "scripts/register_cdc_connector.py"]
+    restart: "no"
+
   kafka-volume-init:
     image: busybox:1.37.0
-    profiles: ["streaming"]
     user: "0:0"
     volumes:
       - kafka_data:/data

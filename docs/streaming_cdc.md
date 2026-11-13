@@ -1,17 +1,17 @@
 # Simulated PostgreSQL CDC demo
 
-This optional local demo sends fixed, fictional port-call changes through PostgreSQL WAL, Debezium, Kafka, an Airflow micro-batch, and dbt. It does not use the live Portnet API and does not write to Portnet tables.
+This local demo sends fixed, fictional port-call changes through PostgreSQL WAL, Debezium, Kafka, an Airflow micro-batch, and dbt. It does not use the live Portnet API and does not write to Portnet tables.
 
 ## Start the stack
 
 Install Docker Engine and Compose v2, then run from the repository root:
 
 ```sh
-docker compose --profile streaming up --build -d
+docker compose up -d
 docker compose ps
 ```
 
-The profile starts the existing PostgreSQL and Airflow services plus a single-node KRaft broker and Kafka Connect. Kafka is available to containers as `kafka:9092`; its broker port is not published on the host. Kafka Connect REST is bound to `http://localhost:8083`.
+The command starts PostgreSQL, Airflow, Metabase, a single-node KRaft broker, and Kafka Connect. A one-shot Compose service registers the Debezium connector and waits for its task to become healthy. Kafka is available to containers as `kafka:9092`; its broker port is not published on the host. Kafka Connect REST is bound to `http://localhost:8083`.
 
 The demo pins Apache Kafka `4.1.1` and Debezium Connect `3.7.1.Final`. It uses Airflow Kafka provider `3.0.0`, whose official package requirements support Airflow 2.11 and later; this project runs Airflow 3.4.0.
 
@@ -31,16 +31,15 @@ docker compose exec -T db psql -U portpulse -d portpulse \
 
 Expected: `wal_level` is `logical` and the only publication table is `stream_demo.port_eta_state`. `wal_level` takes effect after PostgreSQL restarts; `docker compose up --build -d` recreates the service with the new setting while keeping `postgres_data`.
 
-## Register Debezium
+## Check Debezium
 
-Register the version-controlled connector configuration from the host. It waits for Kafka Connect and reports task failures. It uses the local Compose account; the password can be supplied as `POSTGRES_PASSWORD` if it differs from the documented default.
+Compose registers the version-controlled connector automatically. Check its status:
 
 ```sh
-python scripts/register_cdc_connector.py
 curl -fsS http://localhost:8083/connectors/portpulse-postgres-cdc/status
 ```
 
-The connector uses `pgoutput`, the one-table publication, a dedicated slot, and `snapshot.mode=no_data`. Register and wait for its task to reach `RUNNING` before creating any simulator events; with `no_data`, the connector does not backfill pre-existing source rows.
+The connector uses `pgoutput`, the one-table publication, a dedicated slot, and `snapshot.mode=no_data`. Wait for its task to reach `RUNNING` before creating simulator events; with `no_data`, the connector does not backfill pre-existing source rows. If registration needs to be retried, run `docker compose up -d --force-recreate cdc-setup`.
 
 Check the database slot:
 
@@ -135,11 +134,11 @@ docker compose exec -T db psql -U portpulse -d portpulse \
 Common checks:
 
 - Connector is `FAILED`: inspect `curl -fsS http://localhost:8083/connectors/portpulse-postgres-cdc/status` and `docker compose logs --tail 100 kafka-connect`; verify the migration, password, publication, and replication privileges.
-- PostgreSQL reports `wal_level` is not `logical`: rerun `docker compose --profile streaming up --build -d db` and check `SHOW wal_level` after it restarts.
+- PostgreSQL reports `wal_level` is not `logical`: rerun `docker compose up -d db` and check `SHOW wal_level` after it restarts.
 - Kafka Connect cannot reach PostgreSQL or Kafka: check `docker compose ps` and logs for `db`, `kafka`, and `kafka-connect`.
 - Source table changes but no Kafka record appears: verify the connector reached `RUNNING` before running the simulator and inspect the configured publication and slot.
 - WAL usage grows while the connector is stopped: replication slots retain WAL until they advance or are intentionally dropped. Restart the connector or remove its inactive slot only when its retained changes are no longer needed.
-- Airflow's streaming DAG fails when the optional profile is stopped: start the streaming profile before triggering it. The daily Portnet DAG does not depend on Kafka.
+- Airflow's streaming DAG does not consume events automatically: the DAG is intentionally paused; unpause or trigger it in Airflow. The daily Portnet DAG continues to ingest real Portnet data separately.
 
 ## What the synthetic data tests
 

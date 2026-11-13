@@ -69,6 +69,6 @@ Airflow coordinates ingestion and dbt transformations. Metabase reads the finish
 
 ## Local deployment and limits
 
-Docker Compose starts PostgreSQL, Airflow, and Metabase. A one-shot setup container built from the root Dockerfile waits for PostgreSQL and Metabase, builds the dbt marts, configures the read-only analytics account, and creates and checks both dashboards. Python, Airflow, and dbt dependencies are installed in the shared application image. The Airflow container connects to PostgreSQL by the Compose service name `db`. PostgreSQL application data and Airflow SQLite metadata use separate named volumes.
+Docker Compose starts PostgreSQL, Airflow, Metabase, Kafka, and Kafka Connect. One-shot setup containers wait for their dependencies, build the dbt marts, configure the read-only analytics account, create and check both dashboards, and register the Debezium connector. The streaming Airflow DAG remains paused until a user runs it. Python, Airflow, and dbt dependencies are installed in the shared application image. PostgreSQL application data and Airflow SQLite metadata use separate named volumes.
 
 This is a local learning/demo deployment. Compose binds the service ports to loopback and uses documented demo credentials. It is not configured or claimed as production-ready. See [the README](README.md) for running it and [the database guide](docs/database.md) for volume and migration operations.

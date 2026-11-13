@@ -10,7 +10,7 @@ From the repository root, run the same command as the rest of the local stack:
 docker compose up -d
 ```
 
-Compose starts PostgreSQL, Airflow, and Metabase, then a one-shot setup container waits for PostgreSQL and Metabase, builds the dbt models, configures the read-only account, creates or updates the saved questions and dashboards, and checks that every question query completes. Check setup output with `docker compose logs bi-setup`. If setup fails, the container exits with an error visible in these logs; fix the reported issue and rerun `docker compose up -d`.
+Compose starts PostgreSQL, Airflow, Metabase, Kafka, and Kafka Connect. One-shot setup containers build the dbt models, configure the read-only account, create or update the dashboards, verify saved questions, and register the Debezium connector. Check their output with `docker compose logs bi-setup cdc-setup`. If setup fails, the relevant container exits with an error visible in its logs; fix the issue and rerun `docker compose up -d`.
 
 Open Metabase at [http://localhost:3000](http://localhost:3000). The local default login is `admin@example.test` / `portpulse-local-demo-2026`. These are intentionally simple local demo credentials and must never be used for a public deployment.
 
@@ -30,7 +30,7 @@ Airflow or dbt refreshes the marts; Metabase displays the latest committed resul
 - **Setup did not finish:** inspect `docker compose logs bi-setup`; the service waits for both dependencies and exits nonzero on dbt, permission, API, or question-query errors.
 - **Metabase is starting:** inspect `docker compose logs metabase` and wait for its health check.
 - **Cannot connect to PostgreSQL:** Metabase uses the Compose hostname `db`, not `localhost`.
-- **A dashboard is empty:** run the real Portnet ingestion for Portnet data, or follow the [CDC guide](streaming_cdc.md) for simulated events.
+- **A dashboard is empty:** run the real Portnet ingestion for Portnet data, or follow the [CDC guide](streaming_cdc.md) to generate simulated events and trigger the paused streaming DAG.
 - **Settings disappear:** retain `metabase_data`; `docker compose down` keeps it. Do not use `docker compose down -v` if you want to preserve data.
 
 The Metabase port binds only to `127.0.0.1:3000`. Do not expose the local demo to the public internet.

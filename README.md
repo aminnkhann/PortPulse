@@ -22,7 +22,7 @@ The **PortPulse — Portnet Overview** dashboard shows only real Portnet mart da
 
 ![Kafka CDC dashboard labeled as simulated data](docs/images/cdc_demo.png)
 
-See the [Metabase guide](docs/metabase.md) for dashboard details and troubleshooting. Kafka and Debezium remain optional; start them only for the CDC demonstration with `docker compose --profile streaming up -d`.
+Kafka and Debezium start with the same command. Compose also registers the CDC connector automatically. The streaming Airflow DAG remains paused until you choose to run the simulation. See the [Metabase guide](docs/metabase.md) and [CDC guide](docs/streaming_cdc.md) for details.
 
 ## Run the Portnet pipeline
 

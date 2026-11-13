@@ -8,46 +8,7 @@ sources:
   coordinator_sim: {priority: 3, freshness_minutes: 120}
   carrier_sim: {priority: 2, freshness_minutes: 120}
   terminal_sim: {priority: 1, freshness_minutes: 120}
-  # Legacy database rows from migrations 004 and 006 remain recognized.
-  # They are not supported ingestion sources; these entries preserve source parity.
-  digitraffic: {priority: 1, freshness_minutes: 120}
-  # Portnet V1 uses dedicated tables; this entry keeps migration 006 source parity.
-  portnet: {priority: 2, freshness_minutes: 120}
-  ais: {priority: 1, freshness_minutes: 120}
-
-event_identity:
-  key: event_id
-  canonical_hash_fields: [event_id, port_call_id, source_id, event_time_utc, eta_utc, schema_version]
-  exact_duplicate: "same event_id and same canonical payload hash; received_at_utc is transport metadata"
-  id_collision: "same event_id with different canonical payload hashes"
-  collision_action: "exclude every variant of that event_id from trusted-state calculation"
-
-selection:
-  within_source_order: [event_time_utc, received_at_utc, event_id]
-  within_source_tie_direction: [latest, latest, lexicographically_smallest]
-  trusted_source_order: "highest priority among non-stale sources"
-  no_fresh_source_status: "UNAVAILABLE_STALE"
-  future_received_at: "exclude events received after as_of_utc"
-  stale_when_age_minutes: "greater than source freshness_minutes"
 
 quality_thresholds:
   conflict_minutes: 30
-  conflict_operator: "greater_than"
   delayed_delivery_minutes: 30
-  delayed_operator: "greater_than"
-  freshness: "per-source freshness_minutes above"
-
-input_contract:
-  schema_file: "contracts/port_call_event_v1.schema.json"
-  supported_schema_version: "v1"
-  unknown_fields: "reject"
-  timestamp_format: "ISO-8601 UTC ending in Z"
-
-issue_codes:
-  duplicate: "EXACT_DUPLICATE"
-  id_collision: "ID_COLLISION"
-  invalid_schema: "INVALID_SCHEMA_VERSION"
-  out_of_order: "OUT_OF_ORDER"
-  delayed_delivery: "DELAYED_DELIVERY"
-  stale_source: "STALE_SOURCE"
-  conflict: "CONFLICT"

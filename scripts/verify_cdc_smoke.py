@@ -93,8 +93,7 @@ def verify_airflow_history_and_dbt() -> None:
             by_call = {}
             for call_id, operation in operations:
                 by_call.setdefault(call_id, []).append(operation)
-            expected_history = {"SIM-001": ["c", "u", "u"], "SIM-002": ["c", "d"]}
-            if by_call == expected_history and latest == [("SIM-001", expected_eta)]:
+            if by_call == EXPECTED_OPERATIONS and latest == [("SIM-001", expected_eta)]:
                 print(f"CDC history verified: {operations}")
                 print(f"dbt current-state result verified: {latest}")
                 return

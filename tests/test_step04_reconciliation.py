@@ -15,7 +15,12 @@ from psycopg.conninfo import make_conninfo
 
 from scripts import ingest_fixture
 from scripts.query_state import query_port_call
-from scripts.reconcile import load_rules, reconcile_database, reconcile_port_call
+from scripts.reconcile import (
+    latest_event,
+    load_rules,
+    reconcile_database,
+    reconcile_port_call,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -65,6 +70,17 @@ class ReconciliationTests(unittest.TestCase):
         result = self.reconcile(self.valid + [future])
         self.assertEqual(result["trusted_state"]["event_id"], "COORD-DELAYED-01")
         self.assertEqual(result["counts"]["events_after_as_of_utc"], 1)
+
+    def test_latest_event_breaks_exact_timestamp_ties_by_smallest_id(self):
+        tied = [
+            {
+                "event_id": event_id,
+                "event_time_utc": "2026-01-15T10:00:00Z",
+                "received_at_utc": "2026-01-15T10:01:00Z",
+            }
+            for event_id in ("EVENT-Z", "EVENT-A", "EVENT-M")
+        ]
+        self.assertEqual(latest_event(tied)["event_id"], "EVENT-A")
 
 
 class ReconciliationDatabaseTests(unittest.TestCase):

@@ -1,7 +1,7 @@
 """Validate Debezium messages and store them idempotently in PostgreSQL."""
 
-import json
 import os
+import json
 from datetime import datetime, timezone
 
 import psycopg
@@ -12,9 +12,10 @@ ALLOWED_OPERATIONS = {"c", "u", "d", "r"}
 
 
 def _message_value(message):
-    if hasattr(message, "error") and message.error():
-        raise ValueError(f"Kafka message error: {message.error()}")
-    raw_value = message.value() if hasattr(message, "value") else message
+    error = message.error()
+    if error:
+        raise ValueError(f"Kafka message error: {error}")
+    raw_value = message.value()
     if raw_value is None:
         return None
     try:
@@ -65,9 +66,9 @@ def _row_from_envelope(envelope):
 
 
 def _kafka_identity(message):
-    topic = message.topic() if hasattr(message, "topic") else "test-topic"
-    partition = message.partition() if hasattr(message, "partition") else 0
-    offset = message.offset() if hasattr(message, "offset") else 0
+    topic = message.topic()
+    partition = message.partition()
+    offset = message.offset()
     if (
         type(partition) is not int
         or partition < 0

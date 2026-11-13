@@ -5,16 +5,33 @@ from datetime import datetime
 from pathlib import Path
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    ConfigDict,
+    Field,
+    StringConstraints,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
 SCHEMA = ROOT / "contracts" / "port_call_event_v1.schema.json"
 MARINE_ETA_SCHEMA = ROOT / "contracts" / "marine_eta_event_v1.schema.json"
+
+
+def check_utc_timestamp(value):
+    try:
+        datetime.fromisoformat(value[:-1] + "+00:00")
+    except ValueError as error:
+        raise ValueError("must be an ISO-8601 UTC timestamp ending in Z") from error
+    return value
+
+
 UtcTimestamp = Annotated[
     str,
     StringConstraints(pattern=r"Z$"),
     Field(json_schema_extra={"format": "date-time"}),
+    AfterValidator(check_utc_timestamp),
 ]
 
 
@@ -28,15 +45,6 @@ class EventFields(BaseModel):
     event_time_utc: UtcTimestamp
     received_at_utc: UtcTimestamp
     eta_utc: UtcTimestamp
-
-    @field_validator("event_time_utc", "received_at_utc", "eta_utc")
-    @classmethod
-    def check_utc_timestamp(cls, value):
-        try:
-            datetime.fromisoformat(value[:-1] + "+00:00")
-        except ValueError as error:
-            raise ValueError("must be an ISO-8601 UTC timestamp ending in Z") from error
-        return value
 
 
 class PortCallEvent(EventFields):
@@ -68,15 +76,6 @@ class PortnetEtaPayload(BaseModel):
     eta_source: str | None
     eta_timestamp_utc: UtcTimestamp
 
-    @field_validator("eta_utc", "eta_timestamp_utc")
-    @classmethod
-    def check_utc_timestamp(cls, value):
-        try:
-            datetime.fromisoformat(value[:-1] + "+00:00")
-        except ValueError as error:
-            raise ValueError("must be an ISO-8601 UTC timestamp ending in Z") from error
-        return value
-
 
 def write_json_schema():
     for path, schema in (
@@ -87,16 +86,23 @@ def write_json_schema():
 
 
 def build_json_schema():
-    schema = PortCallEvent.model_json_schema()
-    schema["$schema"] = "https://json-schema.org/draft/2020-12/schema"
-    schema["$id"] = "https://portpulse.example/schemas/port_call_event_v1.schema.json"
-    return schema
+    return build_schema(
+        PortCallEvent,
+        "https://portpulse.example/schemas/port_call_event_v1.schema.json",
+    )
 
 
 def build_marine_eta_json_schema():
-    schema = MarineEtaEvent.model_json_schema()
+    return build_schema(
+        MarineEtaEvent,
+        "https://portpulse.example/schemas/marine_eta_event_v1.schema.json",
+    )
+
+
+def build_schema(model, schema_id):
+    schema = model.model_json_schema()
     schema["$schema"] = "https://json-schema.org/draft/2020-12/schema"
-    schema["$id"] = "https://portpulse.example/schemas/marine_eta_event_v1.schema.json"
+    schema["$id"] = schema_id
     return schema
 
 

@@ -74,7 +74,8 @@ jobs:
           with psycopg.connect(os.environ["PORTPULSE_TEST_DATABASE_URL"]) as connection:
               connection.execute(fixture, prepare=False)
           PY
-      - run: python -m unittest discover -s tests -v
+      - name: Run unit and PostgreSQL integration tests
+        run: python -m unittest discover -s tests -v
       - name: Configure dbt profile
         run: |
           mkdir -p "$HOME/.dbt"

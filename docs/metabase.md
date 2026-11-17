@@ -1,6 +1,6 @@
 # Metabase BI dashboards
 
-Metabase reads PortPulse's existing dbt marts in PostgreSQL. It does not ingest data. The Portnet dashboard contains only real Portnet data; the separate CDC dashboard is labeled as simulated.
+Metabase reads PortPulse's existing dbt marts in PostgreSQL. It does not ingest data. The Portnet dashboard contains only real Portnet data. Synthetic ETA analytics and Kafka CDC each have their own clearly labeled simulated-data dashboards.
 
 ## Start
 
@@ -20,10 +20,27 @@ Metabase settings are stored in the `metabase_data` volume using H2. PostgreSQL 
 
 ## Dashboards
 
-- **PortPulse — Portnet Overview** uses `mart_portnet_latest_eta` and `mart_pipeline_quality`. The quality mart is a current cumulative snapshot, not a historical trend. The latest-ETA mart has one current row per port call and area, not a full ETA history. No source rows means the dashboard is honestly empty.
-- **PortPulse — Kafka CDC Demo (SIMULATED DATA)** uses `mart_stream_latest_eta`. It remains separate from the real Portnet data and is populated only after running the optional CDC simulation and Airflow DAG.
+- **PortPulse — Portnet Overview (REAL API DATA)** uses only captured Portnet observations. It shows accepted/latest counts, quality totals, a chart grouped by **provider update date**, the top 10 observed port areas, ETA lead-time buckets, and recent ETA records. The update-date chart represents the records PortPulse captured, **not** a complete time series of Finnish port traffic. Quality counts are cumulative snapshots; without repeated real observations, a real ETA revision trend would be misleading.
+- **PortPulse — Synthetic ETA Analytics (SIMULATED DATA)** uses the separate `synthetic_demo` pipeline and its dbt marts. It shows fictional calls, daily ETA updates, signed ETA revisions, source contributions, latest ETAs, and ingestion-quality totals. Positive ETA revisions mean a later estimate, negative revisions mean an earlier estimate; **neither represents actual arrival delay**. This dataset has no port-area code, so the synthetic ETA dashboard does not invent one.
+- **PortPulse — Kafka CDC Demo (SIMULATED DATA)** uses only the separate `stream_demo` Kafka/Debezium workflow. Its charts show CDC operation counts and active fictional calls by area.
 
-Airflow or dbt refreshes the marts; Metabase displays the latest committed results. The setup job runs dbt at startup, so the questions have their required models on a fresh database and remain aligned after an explicit restart.
+Metabase reads finished analytics models and does not need to run as an Airflow task. The real Portnet, synthetic ETA and CDC workflows can be run independently; their dashboards do not combine source records. The setup script saves and updates questions in the `PortPulse` collection and is designed to be safe to run again.
+
+## Apply dashboard updates to an existing local installation
+
+First ensure the code and dbt models from this PR are available inside the rebuilt application image. PostgreSQL, Metabase and Airflow volumes must be retained.
+
+```sh
+docker compose up -d --build
+docker compose exec -T airflow dbt build --project-dir /opt/portpulse/dbt
+docker compose run --rm bi-setup
+```
+
+The `bi-setup` job refreshes the read-only Metabase database account and updates the saved dashboard questions. It does not ingest real or synthetic data. To populate the synthetic analytics dashboard, run the `portpulse_synthetic_demo` Airflow DAG as described in [the synthetic guide](synthetic_eta.md), then refresh Metabase. The CDC dashboard requires its separate simulation and consumer workflow.
+
+If you previously created the manual question **Captured ETA Observations — Daily Trend**, the setup script may reuse and update that saved question. Review any manual edits to that card before running setup. It does not delete unrelated saved questions.
+
+On a fresh Compose volume, the normal one-shot `bi-setup` initialization also creates all three dashboards after building the dbt models.
 
 ## Troubleshooting
 

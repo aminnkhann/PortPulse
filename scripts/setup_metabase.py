@@ -15,55 +15,192 @@ ROLE = "metabase_reader"
 COLLECTION = "PortPulse"
 DASHBOARDS = {
     "PortPulse — Portnet Overview": {
+        "Accepted observations": (
+            "scalar",
+            "SELECT accepted_observations FROM analytics.mart_pipeline_quality",
+            (0, 0, 5, 4),
+        ),
         "Latest ETA records": (
             "scalar",
             "SELECT count(*) AS latest_eta_records "
             "FROM analytics.mart_portnet_latest_eta",
-            (0, 0, 4, 4),
-        ),
-        "Calls by area": (
-            "bar",
-            "SELECT port_area_code, count(*) AS port_calls "
-            "FROM analytics.mart_portnet_latest_eta "
-            "GROUP BY port_area_code ORDER BY port_area_code",
-            (1, 0, 12, 6),
-        ),
-        "Current ETAs": (
-            "table",
-            "SELECT port_call_id, port_area_code, "
-            "to_char(eta_utc AT TIME ZONE 'UTC', "
-            "'YYYY-MM-DD HH24:MI \"UTC\"') AS eta_utc, "
-            "to_char(provider_updated_at_utc AT TIME ZONE 'UTC', "
-            "'YYYY-MM-DD HH24:MI \"UTC\"') AS provider_updated_at_utc "
-            "FROM analytics.mart_portnet_latest_eta ORDER BY eta_utc LIMIT 100",
-            (2, 0, 24, 8),
-        ),
-        "Accepted observations": (
-            "scalar",
-            "SELECT accepted_observations FROM analytics.mart_pipeline_quality",
-            (0, 4, 5, 4),
+            (0, 5, 5, 4),
         ),
         "Rejected observations": (
             "scalar",
             "SELECT rejected_observations FROM analytics.mart_pipeline_quality",
-            (0, 9, 5, 4),
+            (0, 10, 5, 4),
         ),
         "Duplicate issues": (
             "scalar",
             "SELECT duplicate_issue_rows FROM analytics.mart_pipeline_quality",
-            (0, 14, 5, 4),
+            (0, 15, 5, 4),
         ),
         "Collision issues": (
             "scalar",
             "SELECT collision_issue_rows FROM analytics.mart_pipeline_quality",
-            (0, 19, 5, 4),
+            (0, 20, 4, 4),
+        ),
+        "Captured ETA Observations — Daily Trend": (
+            "line",
+            """SELECT
+                (provider_updated_at_utc AT TIME ZONE 'UTC')::date
+                    AS provider_update_date,
+                count(*) AS observations
+            FROM analytics.stg_portnet_eta
+            GROUP BY 1
+            ORDER BY 1""",
+            (4, 0, 14, 9),
+        ),
+        "Calls by area": (
+            "row",
+            """SELECT
+                coalesce(port_area_code, 'Unknown') AS port_area_code,
+                count(*) AS port_calls
+            FROM analytics.mart_portnet_latest_eta
+            GROUP BY 1
+            ORDER BY port_calls DESC, port_area_code
+            LIMIT 10""",
+            (4, 14, 10, 9),
+        ),
+        "ETA lead-time distribution": (
+            "bar",
+            """SELECT
+                CASE
+                    WHEN eta_utc < provider_updated_at_utc
+                        THEN '00 Before provider update'
+                    WHEN eta_utc < provider_updated_at_utc + interval '12 hours'
+                        THEN '01 Under 12 hours'
+                    WHEN eta_utc < provider_updated_at_utc + interval '1 day'
+                        THEN '02 12–24 hours'
+                    WHEN eta_utc < provider_updated_at_utc + interval '3 days'
+                        THEN '03 1–3 days'
+                    ELSE '04 Over 3 days'
+                END AS lead_time_bucket,
+                count(*) AS eta_records
+            FROM analytics.mart_portnet_latest_eta
+            GROUP BY 1
+            ORDER BY 1""",
+            (13, 0, 10, 9),
+        ),
+        "Current ETAs": (
+            "table",
+            """SELECT
+                port_call_id,
+                port_area_code,
+                eta_utc,
+                provider_updated_at_utc
+            FROM analytics.mart_portnet_latest_eta
+            ORDER BY eta_utc DESC
+            LIMIT 50""",
+            (13, 10, 14, 9),
         ),
         "Mart refreshed at (UTC)": (
             "table",
-            "SELECT to_char(refreshed_at_utc AT TIME ZONE 'UTC', "
-            "'YYYY-MM-DD HH24:MI \"UTC\"') AS refreshed_at_utc "
-            "FROM analytics.mart_pipeline_quality",
-            (3, 0, 12, 4),
+            """SELECT
+                refreshed_at_utc
+            FROM analytics.mart_pipeline_quality""",
+            (22, 0, 10, 3),
+        ),
+    },
+    "PortPulse — Synthetic ETA Analytics (SIMULATED DATA)": {
+        "Synthetic calls (SIMULATED)": (
+            "scalar",
+            "SELECT count(*) AS synthetic_calls "
+            "FROM analytics.mart_synthetic_eta_latest_eta",
+            (0, 0, 6, 4),
+        ),
+        "Synthetic ETA updates (SIMULATED)": (
+            "scalar",
+            "SELECT count(*) AS eta_updates "
+            "FROM analytics.mart_synthetic_eta_revision_history",
+            (0, 6, 6, 4),
+        ),
+        "ETA revisions (SIMULATED)": (
+            "scalar",
+            "SELECT count(*) AS eta_revisions "
+            "FROM analytics.mart_synthetic_eta_revision_history "
+            "WHERE previous_eta_utc IS NOT NULL",
+            (0, 12, 6, 4),
+        ),
+        "Rejected demo events (SIMULATED)": (
+            "scalar",
+            "SELECT rejected_events FROM analytics.mart_synthetic_eta_quality",
+            (0, 18, 6, 4),
+        ),
+        "Synthetic ETA updates by event date": (
+            "line",
+            """SELECT
+                event_date_utc,
+                eta_updates,
+                port_calls_updated
+            FROM analytics.mart_synthetic_eta_daily_activity
+            ORDER BY event_date_utc""",
+            (4, 0, 14, 9),
+        ),
+        "Synthetic ETA source contributions": (
+            "row",
+            """SELECT
+                source_id,
+                count(*) AS eta_updates
+            FROM analytics.mart_synthetic_eta_revision_history
+            GROUP BY source_id
+            ORDER BY eta_updates DESC, source_id""",
+            (4, 14, 10, 9),
+        ),
+        "Synthetic ETA revision direction": (
+            "bar",
+            """SELECT
+                CASE
+                    WHEN eta_change_minutes < 0 THEN 'ETA moved earlier'
+                    WHEN eta_change_minutes > 0 THEN 'ETA moved later'
+                    ELSE 'ETA unchanged'
+                END AS revision_direction,
+                count(*) AS revisions
+            FROM analytics.mart_synthetic_eta_revision_history
+            WHERE previous_eta_utc IS NOT NULL
+            GROUP BY 1
+            ORDER BY 1""",
+            (13, 0, 12, 8),
+        ),
+        "Synthetic ingestion quality": (
+            "bar",
+            """SELECT 'Rejected' AS issue_type, rejected_events AS event_count
+            FROM analytics.mart_synthetic_eta_quality
+            UNION ALL
+            SELECT 'Duplicate', duplicate_issues
+            FROM analytics.mart_synthetic_eta_quality
+            UNION ALL
+            SELECT 'ID collision', collision_issues
+            FROM analytics.mart_synthetic_eta_quality""",
+            (13, 12, 12, 8),
+        ),
+        "Largest synthetic ETA revisions": (
+            "table",
+            """SELECT
+                port_call_id,
+                source_id,
+                event_time_utc,
+                previous_eta_utc,
+                eta_utc,
+                eta_change_minutes
+            FROM analytics.mart_synthetic_eta_revision_history
+            WHERE previous_eta_utc IS NOT NULL
+            ORDER BY abs(eta_change_minutes) DESC, port_call_id
+            LIMIT 25""",
+            (21, 0, 13, 9),
+        ),
+        "Latest synthetic ETAs": (
+            "table",
+            """SELECT
+                port_call_id,
+                source_id,
+                eta_utc,
+                event_time_utc
+            FROM analytics.mart_synthetic_eta_latest_eta
+            ORDER BY event_time_utc DESC
+            LIMIT 25""",
+            (21, 13, 11, 9),
         ),
     },
     "PortPulse — Kafka CDC Demo (SIMULATED DATA)": {
@@ -73,24 +210,51 @@ DASHBOARDS = {
             "FROM analytics.mart_stream_latest_eta",
             (0, 0, 6, 4),
         ),
-        "Current simulated ETAs": (
-            "table",
-            "SELECT scenario_id, port_call_id, port_area_code, "
-            "to_char(eta_utc AT TIME ZONE 'UTC', "
-            "'YYYY-MM-DD HH24:MI \"UTC\"') AS eta_utc, "
-            "to_char(source_updated_at_utc AT TIME ZONE 'UTC', "
-            "'YYYY-MM-DD HH24:MI \"UTC\"') AS source_updated_at_utc, "
-            "to_char(processed_at_utc AT TIME ZONE 'UTC', "
-            "'YYYY-MM-DD HH24:MI \"UTC\"') AS processed_at_utc "
-            "FROM analytics.mart_stream_latest_eta ORDER BY scenario_id, port_call_id",
-            (1, 0, 24, 8),
+        "CDC events captured (SIMULATED)": (
+            "scalar",
+            "SELECT count(*) AS cdc_events "
+            "FROM analytics.stg_stream_eta_changes",
+            (0, 6, 6, 4),
+        ),
+        "CDC changes by operation (SIMULATED)": (
+            "bar",
+            """SELECT
+                CASE cdc_operation
+                    WHEN 'c' THEN 'Create'
+                    WHEN 'u' THEN 'Update'
+                    WHEN 'd' THEN 'Delete'
+                    WHEN 'r' THEN 'Snapshot'
+                END AS operation,
+                count(*) AS changes
+            FROM analytics.stg_stream_eta_changes
+            GROUP BY 1
+            ORDER BY 1""",
+            (4, 0, 12, 8),
         ),
         "Calls by area (simulated)": (
-            "bar",
-            "SELECT port_area_code, count(*) AS active_simulated_calls "
-            "FROM analytics.mart_stream_latest_eta "
-            "GROUP BY port_area_code ORDER BY port_area_code",
-            (2, 0, 12, 6),
+            "row",
+            """SELECT
+                port_area_code,
+                count(*) AS active_simulated_calls
+            FROM analytics.mart_stream_latest_eta
+            GROUP BY port_area_code
+            ORDER BY active_simulated_calls DESC, port_area_code
+            LIMIT 10""",
+            (4, 12, 12, 8),
+        ),
+        "Current simulated ETAs": (
+            "table",
+            """SELECT
+                scenario_id,
+                port_call_id,
+                port_area_code,
+                eta_utc,
+                source_updated_at_utc,
+                processed_at_utc
+            FROM analytics.mart_stream_latest_eta
+            ORDER BY scenario_id, port_call_id
+            LIMIT 50""",
+            (12, 0, 24, 9),
         ),
     },
 }
@@ -139,7 +303,7 @@ def configure_reader(connection, password):
             EXISTS (
                 SELECT 1 FROM pg_class c
                 JOIN pg_namespace n ON n.oid = c.relnamespace
-                WHERE n.nspname IN ('public', 'stream_demo')
+                WHERE n.nspname IN ('public', 'stream_demo', 'synthetic_demo')
                   AND c.relkind IN ('r', 'p', 'v', 'm', 'f')
                   AND (
                     has_table_privilege(%s, c.oid, 'SELECT')
@@ -152,7 +316,7 @@ def configure_reader(connection, password):
             OR EXISTS (
                 SELECT 1 FROM pg_class c
                 JOIN pg_namespace n ON n.oid = c.relnamespace
-                WHERE n.nspname IN ('public', 'stream_demo')
+                WHERE n.nspname IN ('public', 'stream_demo', 'synthetic_demo')
                   AND c.relkind = 'S'
                   AND (
                     has_sequence_privilege(%s, c.oid, 'USAGE')
@@ -162,7 +326,7 @@ def configure_reader(connection, password):
             )
             OR EXISTS (
                 SELECT 1 FROM pg_namespace n
-                WHERE n.nspname IN ('public', 'stream_demo', 'analytics')
+                WHERE n.nspname IN ('public', 'stream_demo', 'synthetic_demo', 'analytics')
                   AND has_schema_privilege(%s, n.oid, 'CREATE')
             )
         """,

@@ -174,3 +174,19 @@ models:
       - name: ingested_at_utc
         data_tests:
           - not_null
+
+  - name: mart_synthetic_eta_quality
+    description: One-row cumulative synthetic ingestion quality snapshot; not a daily trend.
+    columns:
+      - name: accepted_observations
+        data_tests:
+          - not_null
+      - name: rejected_events
+        data_tests:
+          - not_null
+      - name: duplicate_issues
+        data_tests:
+          - not_null
+      - name: collision_issues
+        data_tests:
+          - not_null

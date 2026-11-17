@@ -43,4 +43,8 @@ def apply_migrations(database_url, *names):
     )
     with psycopg.connect(database_url) as connection:
         for migration in migrations:
-            connection.execute(migration.read_text(), prepare=False)
+            contents = migration.read_text()
+            if migration.name == "010_create_synthetic_eta_schema.sql":
+                schema = connection.execute("SELECT current_schema()").fetchone()[0]
+                contents = contents.replace("synthetic_demo", schema)
+            connection.execute(contents, prepare=False)

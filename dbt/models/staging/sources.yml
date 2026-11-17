@@ -12,3 +12,9 @@ sources:
     schema: stream_demo
     tables:
       - name: port_eta_cdc_event
+  - name: synthetic_demo
+    schema: synthetic_demo
+    tables:
+      - name: eta_observation
+      - name: eta_rejected_event
+      - name: eta_quality_issue

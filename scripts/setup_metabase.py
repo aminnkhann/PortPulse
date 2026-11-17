@@ -326,7 +326,9 @@ def configure_reader(connection, password):
             )
             OR EXISTS (
                 SELECT 1 FROM pg_namespace n
-                WHERE n.nspname IN ('public', 'stream_demo', 'synthetic_demo', 'analytics')
+                WHERE n.nspname IN (
+                    'public', 'stream_demo', 'synthetic_demo', 'analytics'
+                )
                   AND has_schema_privilege(%s, n.oid, 'CREATE')
             )
         """,

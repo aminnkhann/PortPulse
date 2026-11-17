@@ -6,7 +6,9 @@ from dags.portpulse_streaming_cdc import dag as streaming_dag
 
 
 class StreamingDagTests(unittest.TestCase):
-    def test_streaming_dag_starts_paused(self):
+    def test_streaming_dag_is_manual_only_and_starts_paused(self):
+        self.assertIsNone(streaming_dag.schedule)
+        self.assertEqual(streaming_dag.max_active_runs, 1)
         self.assertTrue(streaming_dag.is_paused_upon_creation)
 
     def test_streaming_graph_uses_bounded_consume_then_dbt(self):

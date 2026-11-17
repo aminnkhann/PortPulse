@@ -151,6 +151,21 @@ services:
       start_period: 30s
     restart: unless-stopped
 
+  cdc-topic-setup:
+    image: apache/kafka:4.1.1
+    depends_on:
+      kafka:
+        condition: service_healthy
+    entrypoint: ["/bin/bash", "-c"]
+    command: >-
+      /opt/kafka/bin/kafka-topics.sh
+      --bootstrap-server kafka:9092
+      --create --if-not-exists
+      --topic portpulse_stream.stream_demo.port_eta_state
+      --partitions 3
+      --replication-factor 1
+    restart: "no"
+
   cdc-setup:
     build: .
     depends_on:
@@ -158,6 +173,8 @@ services:
         condition: service_healthy
       kafka-connect:
         condition: service_healthy
+      cdc-topic-setup:
+        condition: service_completed_successfully
     environment:
       KAFKA_CONNECT_URL: http://kafka-connect:8083
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-admin}

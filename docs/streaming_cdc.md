@@ -11,7 +11,7 @@ docker compose up -d
 docker compose ps
 ```
 
-The command starts PostgreSQL, Airflow, Metabase, a single-node KRaft broker, and Kafka Connect. A one-shot Compose service registers the Debezium connector and waits for its task to become healthy. Kafka is available to containers as `kafka:9092`; its broker port is not published on the host. Kafka Connect REST is bound to `http://localhost:8083`.
+The command starts PostgreSQL, Airflow, Metabase, a single-node KRaft broker, and Kafka Connect. A one-shot Compose service creates the CDC Kafka topic before a second one-shot service registers the Debezium connector and waits for its task to become healthy. Kafka is available to containers as `kafka:9092`; its broker port is not published on the host. Kafka Connect REST is bound to `http://localhost:8083`.
 
 The demo pins Apache Kafka `4.1.1` and Debezium Connect `3.7.1.Final`. It uses Airflow Kafka provider `3.0.0`, whose official package requirements support Airflow 2.11 and later; this project runs Airflow 3.4.0.
 
@@ -83,14 +83,14 @@ The Debezium JSON envelope has operation codes `c`, `u`, and `d`; key fields kee
 
 ## Process the micro-batch in Airflow
 
-The streaming DAG is paused on first creation. Unpause it and trigger a run:
+The streaming DAG is manual-only and paused on first creation. Unpause it and trigger a run:
 
 ```sh
 docker compose exec airflow airflow dags unpause portpulse_streaming_cdc
 docker compose exec airflow airflow dags trigger portpulse_streaming_cdc
 ```
 
-It polls no more than 100 records per run, in batches of up to 50, with a five-second poll timeout. Each database batch commits before the Kafka operator commits offsets. If a retry sees a previously stored topic/partition/offset, PostgreSQL ignores that duplicate. After the consumer succeeds, Airflow runs `dbt build`; dbt runs the streaming model checks, including latest-row identity uniqueness and accepted CDC operation values. A failed check fails the build task. The DAG also runs every minute while unpaused.
+It polls no more than 100 records per run, in batches of up to 50, with a five-second poll timeout. Each database batch commits before the Kafka operator commits offsets. If a retry sees a previously stored topic/partition/offset, PostgreSQL ignores that duplicate. After the consumer succeeds, Airflow runs `dbt build`; dbt runs the streaming model checks, including latest-row identity uniqueness and accepted CDC operation values. A failed check fails the build task. The DAG is manual-only, so unpausing it does not schedule recurring runs. Pause it again after your demonstration if desired.
 
 Inspect stored events and ETAs:
 

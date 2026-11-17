@@ -35,6 +35,11 @@ class MetabaseReaderIntegrationTests(unittest.TestCase):
             connection.rollback()
             with self.assertRaises(InsufficientPrivilege):
                 connection.execute(
+                    "SELECT 1 FROM synthetic_demo.eta_observation LIMIT 1"
+                )
+            connection.rollback()
+            with self.assertRaises(InsufficientPrivilege):
+                connection.execute(
                     "UPDATE analytics.mart_pipeline_quality "
                     "SET accepted_observations = accepted_observations WHERE FALSE"
                 )

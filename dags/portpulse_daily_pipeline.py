@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import subprocess
 import sys
+import time
 from datetime import date, timedelta, timezone
 from pathlib import Path
 
@@ -19,6 +20,8 @@ LOGGER = logging.getLogger(__name__)
 
 def _run_date(context: dict) -> str:
     run_conf = context["dag_run"].conf or {}
+    if not isinstance(run_conf, dict):
+        raise ValueError("DAG run configuration must be a JSON object")
     configured_date = run_conf.get("run_date")
     if configured_date is not None:
         if not isinstance(configured_date, str):
@@ -37,20 +40,47 @@ def _run_date(context: dict) -> str:
     return logical_date.astimezone(timezone.utc).date().isoformat()
 
 
+def _run_dates(context: dict) -> list[str]:
+    """Recheck a bounded UTC date window, oldest first."""
+    run_conf = context["dag_run"].conf or {}
+    run_date = date.fromisoformat(_run_date(context))
+    lookback_days = run_conf.get("lookback_days", 7)
+    if (
+        isinstance(lookback_days, bool)
+        or not isinstance(lookback_days, int)
+        or not 1 <= lookback_days <= 30
+    ):
+        raise ValueError("lookback_days must be an integer from 1 to 30")
+    return [
+        (run_date - timedelta(days=days_ago)).isoformat()
+        for days_ago in range(lookback_days - 1, -1, -1)
+    ]
+
+
 def ingest_portnet() -> None:
-    run_date = _run_date(get_current_context())
-    LOGGER.info("Starting Portnet V1 ingestion for UTC date %s", run_date)
-    subprocess.run(
-        [
-            sys.executable,
-            "-m",
-            "scripts.ingest_portnet",
-            "--date",
-            run_date,
-        ],
-        cwd=PROJECT_ROOT,
-        check=True,
+    run_dates = _run_dates(get_current_context())
+    LOGGER.info(
+        "Fetching Portnet V1 UTC dates %s through %s (%s requests)",
+        run_dates[0],
+        run_dates[-1],
+        len(run_dates),
     )
+    for index, run_date in enumerate(run_dates):
+        if index:
+            # Be polite to the upstream API while backfilling.
+            time.sleep(1)
+        LOGGER.info("Ingesting Portnet V1 UTC date %s", run_date)
+        subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "scripts.ingest_portnet",
+                "--date",
+                run_date,
+            ],
+            cwd=PROJECT_ROOT,
+            check=True,
+        )
 
 
 def build_dbt_analytics() -> None:

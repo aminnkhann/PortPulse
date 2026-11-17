@@ -10,6 +10,7 @@ from airflow.dag_processing.dagbag import DagBag
 
 from dags.portpulse_daily_pipeline import (
     PROJECT_ROOT,
+    _run_dates,
     build_dbt_analytics,
     dag,
     ingest_portnet,
@@ -41,12 +42,44 @@ class AirflowDagTests(unittest.TestCase):
         self.assertEqual(dag.max_active_runs, 1)
         self.assertTrue(dag.is_paused_upon_creation)
 
+    def test_bounded_lookback_defaults_to_seven_days(self):
+        context = {
+            "dag_run": SimpleNamespace(conf={"run_date": "2026-11-12", "lookback_days": 1}),
+            "logical_date": datetime(2026, 11, 12, tzinfo=timezone.utc),
+        }
+        self.assertEqual(
+            _run_dates(context),
+            [
+                "2026-11-06",
+                "2026-11-07",
+                "2026-11-08",
+                "2026-11-09",
+                "2026-11-10",
+                "2026-11-11",
+                "2026-11-12",
+            ],
+        )
+        context["dag_run"].conf["lookback_days"] = 1
+        self.assertEqual(_run_dates(context), ["2026-11-12"])
+
+    def test_rejects_unbounded_or_invalid_lookbacks(self):
+        for days in (0, 31, -1, True, 2.5, "7"):
+            with self.subTest(days=days), self.assertRaises(ValueError):
+                _run_dates({
+                    "dag_run": SimpleNamespace(
+                        conf={"run_date": "2026-11-12", "lookback_days": days}
+                    ),
+                    "logical_date": datetime(2026, 11, 12, tzinfo=timezone.utc),
+                })
+
+    @patch("dags.portpulse_daily_pipeline.time.sleep")
     @patch("dags.portpulse_daily_pipeline.subprocess.run")
     @patch("dags.portpulse_daily_pipeline.get_current_context")
     def test_ingestion_uses_configured_utc_date(
         self,
         get_context,
         run_command,
+        sleep,
     ):
         get_context.return_value = {
             "dag_run": SimpleNamespace(conf={"run_date": "2026-11-12"}),
@@ -59,22 +92,45 @@ class AirflowDagTests(unittest.TestCase):
         self.assertEqual(command[-2:], ["--date", "2026-11-12"])
         self.assertEqual(run_command.call_args.kwargs["cwd"], PROJECT_ROOT)
         self.assertTrue(run_command.call_args.kwargs["check"])
+        sleep.assert_not_called()
 
+    @patch("dags.portpulse_daily_pipeline.time.sleep")
     @patch("dags.portpulse_daily_pipeline.subprocess.run")
     @patch("dags.portpulse_daily_pipeline.get_current_context")
     def test_ingestion_uses_utc_logical_date_when_no_override(
         self,
         get_context,
         run_command,
+        sleep,
     ):
         get_context.return_value = {
-            "dag_run": SimpleNamespace(conf={}),
+            "dag_run": SimpleNamespace(conf={"lookback_days": 1}),
             "logical_date": datetime.fromisoformat("2026-11-12T00:30:00+02:00"),
         }
 
         ingest_portnet()
 
         self.assertEqual(run_command.call_args.args[0][-1], "2026-11-11")
+        sleep.assert_not_called()
+
+    @patch("dags.portpulse_daily_pipeline.time.sleep")
+    @patch("dags.portpulse_daily_pipeline.subprocess.run")
+    @patch("dags.portpulse_daily_pipeline.get_current_context")
+    def test_multiple_dates_are_ingested_oldest_first(
+        self, get_context, run_command, sleep
+    ):
+        get_context.return_value = {
+            "dag_run": SimpleNamespace(
+                conf={"run_date": "2026-11-12", "lookback_days": 3}
+            ),
+            "logical_date": datetime(2026, 11, 12, tzinfo=timezone.utc),
+        }
+        ingest_portnet()
+        self.assertEqual(
+            [item.args[0][-1] for item in run_command.call_args_list],
+            ["2026-11-10", "2026-11-11", "2026-11-12"],
+        )
+        self.assertEqual(sleep.call_count, 2)
 
     @patch("dags.portpulse_daily_pipeline.subprocess.run")
     def test_dbt_failure_propagates(self, run_command):

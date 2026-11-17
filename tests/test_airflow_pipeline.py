@@ -44,7 +44,7 @@ class AirflowDagTests(unittest.TestCase):
 
     def test_bounded_lookback_defaults_to_seven_days(self):
         context = {
-            "dag_run": SimpleNamespace(conf={"run_date": "2026-11-12", "lookback_days": 1}),
+            "dag_run": SimpleNamespace(conf={"run_date": "2026-11-12"}),
             "logical_date": datetime(2026, 11, 12, tzinfo=timezone.utc),
         }
         self.assertEqual(
@@ -82,7 +82,7 @@ class AirflowDagTests(unittest.TestCase):
         sleep,
     ):
         get_context.return_value = {
-            "dag_run": SimpleNamespace(conf={"run_date": "2026-11-12"}),
+            "dag_run": SimpleNamespace(conf={"run_date": "2026-11-12", "lookback_days": 1}),
             "logical_date": datetime(2026, 11, 12, tzinfo=timezone.utc),
         }
 

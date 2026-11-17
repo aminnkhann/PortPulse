@@ -14,6 +14,56 @@ This starts PostgreSQL, Airflow, Metabase, and a one-time setup job that builds 
 
 Local demo logins are `admin` / `admin` for Airflow and `admin@example.test` / `portpulse-local-demo-2026` for Metabase. Override them with the variables in `.env.example`; never use the defaults in a public deployment.
 
+## One-run demonstration (recommended)
+
+Start the local platform:
+
+```sh
+docker compose up -d --build
+```
+
+Open [Airflow](http://localhost:8080) and find **`portpulse_full_pipeline`**.
+This DAG is **manual-only and unpaused on first creation**. Trigger it once
+from Airflow, or use:
+
+```sh
+docker compose exec -T airflow airflow dags trigger portpulse_full_pipeline
+```
+
+A single run fetches the last seven UTC dates of **real Digitraffic Portnet
+V1 data**, independently generates and ingests **1,000 fictional calls**
+(seed 42), then executes `dbt build` and tests. The real and synthetic
+tables stay separate. Metabase shows the saved dashboards after the run
+finishes; it is not part of the DAG.
+
+To select a date window and a synthetic scenario, manually trigger with
+DAG configuration:
+
+```sh
+docker compose exec -T airflow airflow dags trigger portpulse_full_pipeline \
+  --conf '{"run_date":"2026-11-17","lookback_days":7,"port_calls":1000,"seed":42}'
+```
+
+`lookback_days` can be 1–30. API response volumes vary: seven requests
+do **not** guarantee a specific number of observations. Re-running the
+same scenario preserves accepted records without inserting identical
+observations again. For exact repeatability use the deterministic
+synthetic data; live Portnet responses are not fixed snapshots.
+
+The first boot requires a ready PostgreSQL database with migrations 001–010.
+Fresh Compose volumes initialize automatically; see
+[database operations](docs/database.md) for upgrading an existing volume.
+If the DAG is paused because of an existing Airflow setting, unpause it
+once in the UI or with:
+
+```sh
+docker compose exec -T airflow airflow dags unpause portpulse_full_pipeline
+```
+
+Do not run `docker compose down -v`: that deletes persistent project
+volumes. Keep the same Compose project name so you reconnect to the same
+stored dataset.
+
 ## BI dashboards
 
 The **PortPulse — Portnet Overview** dashboard shows only real Portnet mart data. It stays empty until Portnet observations have been ingested. The **PortPulse — Kafka CDC Demo (SIMULATED DATA)** dashboard shows the separate simulated CDC example.

@@ -105,3 +105,57 @@ docker compose logs --tail 100 airflow
 A valid Portnet poll may return no eligible records. That does not by itself indicate a database or dbt failure.
 
 For Kafka Connect status, inspect `docker compose logs --tail 100 kafka-connect` and `http://localhost:8083/connectors/portpulse-postgres-cdc/status`. If the connector cannot start, check `wal_level`, publication membership, the database account's replication privileges, and that migration 008 was applied. The full procedure is in [the streaming CDC guide](streaming_cdc.md).
+
+## Reliable collection and reproducibility
+
+**Protect data before changing Compose projects.** Named Compose volumes are
+prefixed by the project name. For example, `portpulse-main_postgres_data`
+and `portpulse-bi-review_postgres_data` are two separate databases, even
+when the Python and SQL code is identical. Use the same project directory
+and Compose project name for everyday operation. Check the active project
+with `docker compose ps` and its mounted database volume with
+`docker inspect "$(docker compose ps -q db)" --format '{{range .Mounts}}{{println .Name .Destination}}{{end}}'`.
+Do not use `docker compose down -v` or `docker volume prune` on data
+you want to retain.
+
+Back up the **entire** application PostgreSQL database before upgrades,
+migrations or major ingestion experiments:
+
+```sh
+bash scripts/backup_postgres.sh
+```
+
+This creates and verifies a timestamped custom-format PostgreSQL archive in
+the host's ignored `backups/` folder, outside Docker volumes. Keep at
+least one separate copy in another safe location. Do not commit snapshots
+to Git; actual API responses and database exports can contain operational data.
+An archive supports restoring a database to its captured state, whereas
+re-fetching a live API is not guaranteed to reproduce historical records.
+Test restores into an isolated database before relying on backups; never
+restore directly over the running database without a separate recovery plan.
+
+The `portpulse_daily_pipeline` Airflow DAG now rechecks **seven UTC dates**
+per scheduled run by default (the target logical date plus six preceding
+dates). A manual DAG trigger can set `run_date` (YYYY-MM-DD) and
+`lookback_days` (1–30). For example:
+
+```sh
+docker compose exec -T airflow airflow dags unpause portpulse_daily_pipeline
+docker compose exec -T airflow airflow dags trigger portpulse_daily_pipeline \
+  --conf '{"run_date":"2026-11-17","lookback_days":14}'
+```
+
+This performs at most 14 date-filtered API requests, in chronological order,
+with a one-second pause between requests; it **does not** guarantee a minimum
+number of port calls or recover data that the provider no longer returns.
+Stored unique observations are retained on reruns, while repeated polling
+can add duplicate-quality issue rows. The DAG's dbt task runs only after
+all date requests succeed. The daily run is still paused by default and
+has to be unpaused to collect automatically at 06:00 UTC.
+
+The Portnet V1 API is time-varying. Repeating the same date-filtered request
+may yield a different response. Use synthetic seed-42 fixtures and existing
+isolated integration tests when exact data reproducibility is needed, and
+use database backup archives for reproducing a captured live dataset.
+The real API workflow should never claim to deliver identical row counts
+across independent fresh databases.

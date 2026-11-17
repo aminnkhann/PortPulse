@@ -100,10 +100,12 @@ counts include only valid, unique observations.
 ## Run the synthetic Airflow pipeline
 
 After applying migration 010, start the Compose services and trigger the
-dedicated DAG. It starts paused and has no schedule. A trigger without
-configuration uses 1,000 calls and seed 42:
+dedicated DAG. Because it starts paused, unpause it before triggering. Its
+`schedule=None` setting keeps it manual-only, including after it is unpaused.
+A trigger without configuration uses 1,000 calls and seed 42:
 
 ```bash
+docker compose exec airflow airflow dags unpause portpulse_synthetic_demo
 docker compose exec airflow airflow dags trigger portpulse_synthetic_demo
 ```
 
@@ -136,9 +138,9 @@ not create dashboards or feed the Kafka CDC pipeline.
 The intended architecture is for Airflow to orchestrate both the real API and
 synthetic demo pipelines: source or generator → Python validation and
 normalization → separate PostgreSQL schemas → dbt transformations and tests.
-The real API and CDC DAGs remain independent. This PR adds no Airflow DAG; a
-small dedicated synthetic-demo DAG is the next step and can call the existing
-commands:
+The dedicated synthetic-demo DAG orchestrates the synthetic pipeline. The
+real API and CDC DAGs remain independent. The generation, ingestion, and dbt
+commands used by the DAG are:
 
 ```sh
 python -m scripts.generate_synthetic_eta --port-calls 1000 --seed 42

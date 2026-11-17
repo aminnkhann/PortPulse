@@ -65,12 +65,14 @@ class AirflowDagTests(unittest.TestCase):
     def test_rejects_unbounded_or_invalid_lookbacks(self):
         for days in (0, 31, -1, True, 2.5, "7"):
             with self.subTest(days=days), self.assertRaises(ValueError):
-                _run_dates({
-                    "dag_run": SimpleNamespace(
-                        conf={"run_date": "2026-11-12", "lookback_days": days}
-                    ),
-                    "logical_date": datetime(2026, 11, 12, tzinfo=timezone.utc),
-                })
+                _run_dates(
+                    {
+                        "dag_run": SimpleNamespace(
+                            conf={"run_date": "2026-11-12", "lookback_days": days}
+                        ),
+                        "logical_date": datetime(2026, 11, 12, tzinfo=timezone.utc),
+                    }
+                )
 
     @patch("dags.portpulse_daily_pipeline.time.sleep")
     @patch("dags.portpulse_daily_pipeline.subprocess.run")

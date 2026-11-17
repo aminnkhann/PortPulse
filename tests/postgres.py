@@ -46,5 +46,6 @@ def apply_migrations(database_url, *names):
             contents = migration.read_text()
             if migration.name == "010_create_synthetic_eta_schema.sql":
                 schema = connection.execute("SELECT current_schema()").fetchone()[0]
-                contents = contents.replace("synthetic_demo", schema)
+                if schema != "public":
+                    contents = contents.replace("synthetic_demo", schema)
             connection.execute(contents, prepare=False)

@@ -82,7 +82,9 @@ class AirflowDagTests(unittest.TestCase):
         sleep,
     ):
         get_context.return_value = {
-            "dag_run": SimpleNamespace(conf={"run_date": "2026-11-12", "lookback_days": 1}),
+            "dag_run": SimpleNamespace(
+                conf={"run_date": "2026-11-12", "lookback_days": 1}
+            ),
             "logical_date": datetime(2026, 11, 12, tzinfo=timezone.utc),
         }
 

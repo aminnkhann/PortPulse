@@ -8,9 +8,7 @@ from scripts.setup_metabase import DASHBOARDS
 class DashboardDefinitionsTests(unittest.TestCase):
     def test_dashboards_keep_real_and_simulated_data_separate(self):
         real = DASHBOARDS["PortPulse — Portnet Overview"]
-        synthetic = DASHBOARDS[
-            "PortPulse — Synthetic ETA Analytics (SIMULATED DATA)"
-        ]
+        synthetic = DASHBOARDS["PortPulse — Synthetic ETA Analytics (SIMULATED DATA)"]
         cdc = DASHBOARDS["PortPulse — Kafka CDC Demo (SIMULATED DATA)"]
 
         self.assertIn("Captured ETA Observations — Daily Trend", real)
@@ -61,9 +59,7 @@ class DashboardDefinitionsTests(unittest.TestCase):
         self.assertNotIn("current_timestamp", query)
 
     def test_eta_revision_chart_uses_estimate_changes_not_actual_arrivals(self):
-        synthetic = DASHBOARDS[
-            "PortPulse — Synthetic ETA Analytics (SIMULATED DATA)"
-        ]
+        synthetic = DASHBOARDS["PortPulse — Synthetic ETA Analytics (SIMULATED DATA)"]
         _, query, _ = synthetic["Synthetic ETA revision direction"]
         self.assertIn("eta_change_minutes", query)
         self.assertIn("previous_eta_utc IS NOT NULL", query)

@@ -212,8 +212,7 @@ DASHBOARDS = {
         ),
         "CDC events captured (SIMULATED)": (
             "scalar",
-            "SELECT count(*) AS cdc_events "
-            "FROM analytics.stg_stream_eta_changes",
+            "SELECT count(*) AS cdc_events FROM analytics.stg_stream_eta_changes",
             (0, 6, 6, 4),
         ),
         "CDC changes by operation (SIMULATED)": (

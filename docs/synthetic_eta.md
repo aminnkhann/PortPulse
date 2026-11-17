@@ -100,3 +100,21 @@ an optional nullable `port_area_code`, retain v1 validation, and add a nullable
 database column. Do not infer an area in dbt. A future visualization PR can
 then decide whether to chart the new synthetic marts in Metabase; this PR does
 not create dashboards or feed the Kafka CDC pipeline.
+
+## Orchestration boundary
+
+The intended architecture is for Airflow to orchestrate both the real API and
+synthetic demo pipelines: source or generator → Python validation and
+normalization → separate PostgreSQL schemas → dbt transformations and tests.
+The real API and CDC DAGs remain independent. This PR adds no Airflow DAG; a
+small dedicated synthetic-demo DAG is the next step and can call the existing
+commands:
+
+```sh
+python -m scripts.generate_synthetic_eta --port-calls 1000 --seed 42
+python -m scripts.ingest_synthetic_eta --input fixtures/synthetic_eta_v1.jsonl
+dbt build --project-dir /opt/portpulse/dbt
+```
+
+Metabase reads the refreshed PostgreSQL analytics models as the presentation
+layer. It does not need to run as an Airflow task for every pipeline run.

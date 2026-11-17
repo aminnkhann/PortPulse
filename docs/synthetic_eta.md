@@ -42,6 +42,11 @@ on reruns. The command reports accepted, rejected, duplicate, collision, and
 newly inserted counts. `DATABASE_URL` is supplied by the Compose `airflow`
 service; the CLI exits with a clear error if it is missing.
 
+Call and event IDs include the seed, so separate seeded scenarios can coexist
+in `synthetic_demo` without ID collisions. Continue using seed 42 when loading
+the 50-call sample followed by the 1,000-call dataset; the larger dataset then
+adds the remaining calls and remains idempotent on reruns.
+
 To ingest a different JSONL file, pass its path with `--input`. The path must be
 visible inside the `airflow` container.
 

@@ -165,6 +165,40 @@ class SyntheticEtaIngestionDatabaseTests(unittest.TestCase):
         self.assertEqual(collision_count, 1)
         self.assertEqual(observation_count, 2)
 
+    def test_distinct_seeds_load_without_identity_collisions(self):
+        first_events, first_summary = build_dataset(50, seed=42)
+        second_events, second_summary = build_dataset(50, seed=7)
+        first_valid = [
+            event for event in first_events if event["schema_version"] == "v1"
+        ]
+        second_valid = [
+            event for event in second_events if event["schema_version"] == "v1"
+        ]
+
+        first = store_events(first_valid, [], self.database_url, self.schema)
+        second = store_events(second_valid, [], self.database_url, self.schema)
+        repeated = store_events(first_valid, [], self.database_url, self.schema)
+
+        observation_table = f"{self.schema}.eta_observation"
+        quality_table = f"{self.schema}.eta_quality_issue"
+        with psycopg.connect(self.database_url) as connection:
+            observation_count = connection.execute(
+                f"SELECT count(*) FROM {observation_table}"
+            ).fetchone()[0]
+            collision_count = connection.execute(
+                f"SELECT count(*) FROM {quality_table} "
+                "WHERE issue_code = 'ID_COLLISION'"
+            ).fetchone()[0]
+
+        self.assertEqual(first["inserted"], first_summary["eta_updates"])
+        self.assertEqual(second["inserted"], second_summary["eta_updates"])
+        self.assertEqual(repeated["inserted"], 0)
+        self.assertEqual(
+            observation_count,
+            first_summary["eta_updates"] + second_summary["eta_updates"],
+        )
+        self.assertEqual(collision_count, 0)
+
 
 if __name__ == "__main__":
     unittest.main()

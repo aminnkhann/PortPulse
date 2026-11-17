@@ -45,7 +45,7 @@ class SyntheticEtaGeneratorTests(unittest.TestCase):
                 )
                 self.assertGreaterEqual(timestamp, START)
                 self.assertLess(timestamp, window_end)
-            self.assertTrue(event["port_call_id"].startswith("SYNTH-PC-"))
+            self.assertTrue(event["port_call_id"].startswith("SYNTH-42-PC-"))
             self.assertNotEqual(event["source_id"], "portnet")
             if event["schema_version"] == "v1":
                 PortCallEvent.model_validate(event)

@@ -14,7 +14,7 @@ from scripts import ingest_fixture
 
 
 ROOT = Path(__file__).resolve().parents[1]
-RULES_FILE = ROOT / "rules" / "eta_rules_v1.yaml"
+RULES_FILE = ROOT / "rules" / "eta_rules_v2.yaml"
 RULE_DESCRIPTION = (
     "highest-priority non-stale source; latest eligible event_time within source"
 )

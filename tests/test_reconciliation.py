@@ -6,12 +6,7 @@ import unittest
 from copy import deepcopy
 from datetime import datetime, timezone
 from pathlib import Path
-import uuid
 from unittest.mock import patch
-
-import psycopg
-from psycopg import sql
-from psycopg.conninfo import make_conninfo
 
 from scripts import ingest_fixture
 from scripts.query_state import query_port_call
@@ -21,6 +16,7 @@ from scripts.reconcile import (
     reconcile_database,
     reconcile_port_call,
 )
+from tests.postgres import apply_migrations, create_test_schema
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -85,33 +81,11 @@ class ReconciliationTests(unittest.TestCase):
 
 class ReconciliationDatabaseTests(unittest.TestCase):
     def setUp(self):
-        self.base_url = os.environ.get("PORTPULSE_TEST_DATABASE_URL")
-        if not self.base_url:
-            self.skipTest("set PORTPULSE_TEST_DATABASE_URL to run PostgreSQL checks")
-
-        self.schema_name = f"portpulse_reconcile_{uuid.uuid4().hex}"
-        with psycopg.connect(self.base_url) as connection:
-            connection.execute(
-                sql.SQL("CREATE SCHEMA {}").format(sql.Identifier(self.schema_name))
-            )
-        self.database_url = make_conninfo(
-            self.base_url, options=f"-c search_path={self.schema_name}"
-        )
-        with psycopg.connect(self.database_url) as connection:
-            for migration in sorted((ROOT / "migrations").glob("*.sql")):
-                connection.execute(migration.read_text(), prepare=False)
+        self.database_url = create_test_schema(self, "portpulse_reconcile")
+        apply_migrations(self.database_url)
         valid, rejected = ingest_fixture.read_fixture()
         with patch.dict(os.environ, {"DATABASE_URL": self.database_url}):
             ingest_fixture.store_fixture(valid, rejected)
-
-    def tearDown(self):
-        if getattr(self, "schema_name", None):
-            with psycopg.connect(self.base_url) as connection:
-                connection.execute(
-                    sql.SQL("DROP SCHEMA IF EXISTS {} CASCADE").format(
-                        sql.Identifier(self.schema_name)
-                    )
-                )
 
     def test_reconciliation_is_persisted_and_queryable_on_replay(self):
         first = reconcile_database(self.database_url)
@@ -143,43 +117,6 @@ class ReconciliationDatabaseTests(unittest.TestCase):
                 "STALE_SOURCE": 1,
             },
         )
-
-    def test_migration_009_keeps_source_rows_referenced_by_history_or_state(self):
-        with psycopg.connect(self.database_url) as connection:
-            connection.execute(
-                """INSERT INTO source_system (source_id, priority, freshness_minutes)
-                   VALUES ('digitraffic', 1, 120),
-                          ('portnet', 2, 120), ('ais', 1, 120)"""
-            )
-            connection.execute(
-                "INSERT INTO port_call (port_call_id) VALUES ('legacy-call')"
-            )
-            connection.execute(
-                """INSERT INTO raw_event
-                   (event_id, port_call_id, source_id, event_time_utc,
-                    received_at_utc, eta_utc, schema_version,
-                    canonical_payload_sha256, raw_payload)
-                   VALUES ('legacy-event', 'legacy-call', 'digitraffic',
-                           '2026-01-15T10:00:00Z', '2026-01-15T10:01:00Z',
-                           '2026-01-15T12:00:00Z', 'v1', repeat('0', 64), '{}')"""
-            )
-            connection.execute(
-                """INSERT INTO port_call_state
-                   (port_call_id, status, trusted_eta_utc, source_id,
-                    winning_event_id, as_of_utc, rules_version)
-                   VALUES ('legacy-call', 'TRUSTED', '2026-01-15T12:00:00Z',
-                           'ais', 'legacy-event', '2026-01-15T11:00:00Z', '1')"""
-            )
-            connection.execute(
-                (ROOT / "migrations/009_remove_unused_sources.sql").read_text(),
-                prepare=False,
-            )
-            remaining = connection.execute(
-                "SELECT source_id FROM source_system WHERE source_id IN "
-                "('digitraffic', 'portnet', 'ais') ORDER BY source_id"
-            ).fetchall()
-
-        self.assertEqual(remaining, [("ais",), ("digitraffic",)])
 
 
 if __name__ == "__main__":

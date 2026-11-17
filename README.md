@@ -44,6 +44,7 @@ PortPulse is a local learning project, not a production maritime tracking servic
 - [Database operations](docs/database.md)
 - [Data dictionary](docs/data_dictionary.md)
 - [Streaming CDC demonstration](docs/streaming_cdc.md)
+- [Synthetic maritime ETA dataset](docs/synthetic_eta.md)
 - [Metabase setup and troubleshooting](docs/metabase.md)
 
 Run the Python tests in Airflow. Install the development-only Ruff dependency on your host to check formatting and lint:

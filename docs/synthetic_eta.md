@@ -97,6 +97,33 @@ After loading the full dataset, dbt produces 28 daily activity rows covering
 3,496 updates, 3,496 revision-history rows, and 1,000 latest-call rows. These
 counts include only valid, unique observations.
 
+## Run the synthetic Airflow pipeline
+
+After applying migration 010, start the Compose services and trigger the
+dedicated DAG. Because it starts paused, unpause it before triggering. Its
+`schedule=None` setting keeps it manual-only, including after it is unpaused.
+A trigger without configuration uses 1,000 calls and seed 42:
+
+```bash
+docker compose exec airflow airflow dags unpause portpulse_synthetic_demo
+docker compose exec airflow airflow dags trigger portpulse_synthetic_demo
+```
+
+To run a smaller scenario or choose another seed, pass JSON configuration:
+
+```bash
+docker compose exec airflow airflow dags trigger portpulse_synthetic_demo \
+  --conf '{"port_calls":50,"seed":7}'
+```
+
+`port_calls` must be an integer from 1 to 1,000 and `seed` must be an integer.
+The three DAG tasks run in order: generate JSONL, validate and ingest into
+`synthetic_demo`, then run `dbt build`. Each run gets its own temporary JSONL
+path, while database ingestion remains idempotent. To verify completion, check
+that all three tasks succeeded in Airflow and query the synthetic tables and
+analytics marts using the commands above. The real Portnet and Kafka CDC DAGs
+remain separate and are not triggered by this DAG.
+
 ## Next integration step
 
 The contract has no `port_area_code`. If the next visualization needs area
@@ -111,9 +138,9 @@ not create dashboards or feed the Kafka CDC pipeline.
 The intended architecture is for Airflow to orchestrate both the real API and
 synthetic demo pipelines: source or generator → Python validation and
 normalization → separate PostgreSQL schemas → dbt transformations and tests.
-The real API and CDC DAGs remain independent. This PR adds no Airflow DAG; a
-small dedicated synthetic-demo DAG is the next step and can call the existing
-commands:
+The dedicated synthetic-demo DAG orchestrates the synthetic pipeline. The
+real API and CDC DAGs remain independent. The generation, ingestion, and dbt
+commands used by the DAG are:
 
 ```sh
 python -m scripts.generate_synthetic_eta --port-calls 1000 --seed 42

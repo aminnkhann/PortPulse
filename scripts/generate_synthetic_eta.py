@@ -116,6 +116,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--port-calls", type=int, default=50, choices=range(1, 1001))
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--output", type=Path, default=OUTPUT)
     return parser.parse_args()
 
 
@@ -126,12 +127,12 @@ def main():
         if event["schema_version"] == "v1":
             PortCallEvent.model_validate(event)
 
-    OUTPUT.parent.mkdir(parents=True, exist_ok=True)
-    OUTPUT.write_text(
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    args.output.write_text(
         "".join(json.dumps(event, separators=(",", ":")) + "\n" for event in events),
         encoding="utf-8",
     )
-    print(f"Wrote {summary['event_occurrences']} event occurrences to {OUTPUT}")
+    print(f"Wrote {summary['event_occurrences']} event occurrences to {args.output}")
     print(json.dumps(summary, indent=2))
 
 

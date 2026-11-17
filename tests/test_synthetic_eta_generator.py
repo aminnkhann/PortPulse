@@ -3,15 +3,39 @@
 import unittest
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
 from pydantic import ValidationError
 
 from scripts.event_model import PortCallEvent
-from scripts.generate_synthetic_eta import START, build_dataset
+from scripts.generate_synthetic_eta import START, build_dataset, main
 from scripts.ingest_fixture import canonical_hash
 
 
 class SyntheticEtaGeneratorTests(unittest.TestCase):
+    def test_cli_writes_to_the_configured_output_path(self):
+        with TemporaryDirectory() as directory:
+            output_path = Path(directory) / "run.jsonl"
+            with patch(
+                "sys.argv",
+                [
+                    "generate_synthetic_eta",
+                    "--port-calls",
+                    "1",
+                    "--output",
+                    str(output_path),
+                ],
+            ):
+                main()
+
+            self.assertTrue(output_path.is_file())
+            self.assertEqual(
+                len(output_path.read_text(encoding="utf-8").splitlines()),
+                len(build_dataset(1)[0]),
+            )
+
     def test_default_dataset_is_reproducible_and_has_expected_counts(self):
         events, summary = build_dataset(seed=42)
         self.assertEqual((events, summary), build_dataset(seed=42))

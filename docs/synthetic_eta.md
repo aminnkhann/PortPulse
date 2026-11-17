@@ -97,6 +97,31 @@ After loading the full dataset, dbt produces 28 daily activity rows covering
 3,496 updates, 3,496 revision-history rows, and 1,000 latest-call rows. These
 counts include only valid, unique observations.
 
+## Run the synthetic Airflow pipeline
+
+After applying migration 010, start the Compose services and trigger the
+dedicated DAG. It starts paused and has no schedule. A trigger without
+configuration uses 1,000 calls and seed 42:
+
+```bash
+docker compose exec airflow airflow dags trigger portpulse_synthetic_demo
+```
+
+To run a smaller scenario or choose another seed, pass JSON configuration:
+
+```bash
+docker compose exec airflow airflow dags trigger portpulse_synthetic_demo \
+  --conf '{"port_calls":50,"seed":7}'
+```
+
+`port_calls` must be an integer from 1 to 1,000 and `seed` must be an integer.
+The three DAG tasks run in order: generate JSONL, validate and ingest into
+`synthetic_demo`, then run `dbt build`. Each run gets its own temporary JSONL
+path, while database ingestion remains idempotent. To verify completion, check
+that all three tasks succeeded in Airflow and query the synthetic tables and
+analytics marts using the commands above. The real Portnet and Kafka CDC DAGs
+remain separate and are not triggered by this DAG.
+
 ## Next integration step
 
 The contract has no `port_area_code`. If the next visualization needs area

@@ -33,7 +33,7 @@ def build_streaming_dbt_models() -> None:
 with DAG(
     dag_id="portpulse_streaming_cdc",
     description="Consume bounded Debezium CDC batches and build simulated ETA marts",
-    schedule="* * * * *",
+    schedule=None,
     start_date=pendulum.datetime(2026, 1, 1, tz="UTC"),
     catchup=False,
     max_active_runs=1,

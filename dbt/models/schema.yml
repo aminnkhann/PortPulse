@@ -79,3 +79,98 @@ models:
       - name: eta_utc
         data_tests:
           - not_null
+
+  - name: stg_synthetic_eta
+    columns:
+      - name: synthetic_observation_id
+        data_tests:
+          - unique
+          - not_null
+      - name: event_id
+        data_tests:
+          - unique
+          - not_null
+      - name: port_call_id
+        data_tests:
+          - not_null
+      - name: source_id
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['coordinator_sim', 'carrier_sim', 'terminal_sim']
+      - name: event_time_utc
+        data_tests:
+          - not_null
+      - name: received_at_utc
+        data_tests:
+          - not_null
+      - name: ingested_at_utc
+        data_tests:
+          - not_null
+      - name: eta_utc
+        data_tests:
+          - not_null
+
+  - name: mart_synthetic_eta_daily_activity
+    columns:
+      - name: event_date_utc
+        data_tests:
+          - unique
+          - not_null
+      - name: eta_updates
+        data_tests:
+          - not_null
+      - name: port_calls_updated
+        data_tests:
+          - not_null
+
+  - name: mart_synthetic_eta_revision_history
+    columns:
+      - name: synthetic_observation_id
+        data_tests:
+          - unique
+          - not_null
+      - name: event_id
+        data_tests:
+          - not_null
+      - name: port_call_id
+        data_tests:
+          - not_null
+      - name: event_time_utc
+        data_tests:
+          - not_null
+      - name: received_at_utc
+        data_tests:
+          - not_null
+      - name: ingested_at_utc
+        data_tests:
+          - not_null
+      - name: eta_utc
+        data_tests:
+          - not_null
+
+  - name: mart_synthetic_eta_latest_eta
+    columns:
+      - name: port_call_id
+        data_tests:
+          - unique
+          - not_null
+      - name: event_id
+        data_tests:
+          - not_null
+      - name: source_id
+        data_tests:
+          - not_null
+      - name: eta_utc
+        data_tests:
+          - not_null
+      - name: event_time_utc
+        data_tests:
+          - not_null
+      - name: received_at_utc
+        data_tests:
+          - not_null
+      - name: ingested_at_utc
+        data_tests:
+          - not_null

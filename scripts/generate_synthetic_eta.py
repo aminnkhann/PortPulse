@@ -33,7 +33,7 @@ def build_dataset(port_calls=50, seed=42):
     invalid_events = 0
 
     for call_number in range(1, port_calls + 1):
-        call_id = f"SYNTH-PC-{call_number:04}"
+        call_id = f"SYNTH-{seed}-PC-{call_number:04}"
         update_count = randomizer.randint(2, 5)
         call_start = START + timedelta(days=randomizer.randint(0, 24))
         event_times = [call_start]
@@ -57,7 +57,7 @@ def build_dataset(port_calls=50, seed=42):
                 delayed_events += 1
 
             event = {
-                "event_id": f"SYNTH-{call_number:04}-{update_number:02}",
+                "event_id": f"SYNTH-{seed}-{call_number:04}-{update_number:02}",
                 "port_call_id": call_id,
                 "source_id": randomizer.choice(SOURCES),
                 "event_time_utc": utc_text(event_time),
@@ -91,7 +91,7 @@ def build_dataset(port_calls=50, seed=42):
 
         if call_number % 11 == 0:
             invalid = call_events[0].copy()
-            invalid["event_id"] = f"SYNTH-{call_number:04}-INVALID"
+            invalid["event_id"] = f"SYNTH-{seed}-{call_number:04}-INVALID"
             invalid["schema_version"] = "v99"
             events.append(invalid)
             invalid_events += 1

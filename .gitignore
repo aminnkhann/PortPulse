@@ -44,3 +44,6 @@ PortPulse_02_Task_Dictionary.xlsx
 
 # Personal presentation files stay outside the product repository
 /presentation/
+
+# Local PostgreSQL backups (never commit real API records)
+/backups/

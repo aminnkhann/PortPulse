@@ -16,9 +16,7 @@ class KafkaTopicSetupTests(unittest.TestCase):
         services = compose["services"]
         setup = services["cdc-topic-setup"]
 
-        self.assertEqual(
-            setup["entrypoint"], ["/opt/kafka/bin/kafka-topics.sh"]
-        )
+        self.assertEqual(setup["entrypoint"], ["/opt/kafka/bin/kafka-topics.sh"])
         self.assertEqual(
             setup["command"],
             [

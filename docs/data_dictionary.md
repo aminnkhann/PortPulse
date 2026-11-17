@@ -1,6 +1,6 @@
 # PortPulse data dictionary
 
-## Synthetic Phase 1 contract
+## Synthetic ETA reconciliation contract
 
 `contracts/port_call_event_v1.schema.json` is generated from the Pydantic `PortCallEvent` model. The checked-in JSONL fixture contains synthetic events for `PC-DEMO-001`.
 
@@ -15,7 +15,7 @@
 | `eta_utc` | Predicted arrival time. |
 | `schema_version` | Contract version, currently `v1`. |
 
-`rules/eta_rules_v1.yaml` defines deterministic selection and quality thresholds. These are project assumptions, not maritime operating policy.
+`rules/eta_rules_v2.yaml` defines deterministic selection and quality thresholds. These are project assumptions, not maritime operating policy.
 
 ## Portnet V1 observations
 
@@ -41,7 +41,7 @@ Event identity combines port-call ID, area code (or an unambiguous unspecified a
 | `portnet_eta_rejected_event` | Rejected input with reason code, selected safe payload, details, and rejection time. |
 | `portnet_eta_quality_issue` | Duplicate and ID-collision issues with observation identity and details. |
 
-These tables are separate from Phase 1 `raw_event` and trusted-state tables.
+These tables are separate from the synthetic reconciliation `raw_event` and trusted-state tables.
 
 ## dbt outputs
 

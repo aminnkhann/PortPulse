@@ -1,6 +1,6 @@
 # PortPulse Architecture
 
-PortPulse contains a deterministic synthetic reconciliation example and a separate real-data workflow for Finnish Portnet V1 records. Airflow orchestrates the Portnet path; it does not replace PostgreSQL or perform Phase 1 reconciliation.
+PortPulse contains a deterministic synthetic ETA reconciliation example and a separate real-data workflow for Finnish Portnet V1 records. Airflow orchestrates the Portnet path; it does not run the synthetic reconciliation workflow.
 
 ## Portnet workflow
 
@@ -24,7 +24,7 @@ The dbt project reads the Portnet tables in `public` and builds `analytics.stg_p
 
 The `portpulse_daily_pipeline` Airflow DAG runs ingestion followed by `dbt build`, which runs the model and data tests. The DAG is paused on initial setup; its schedule is 06:00 UTC when enabled.
 
-## Synthetic Phase 1 workflow
+## Synthetic ETA reconciliation
 
 The synthetic JSONL fixture is validated and reconciled across three simulated sources using the project’s deterministic rules. It exercises quarantine, duplicate and collision handling, and trusted ETA selection. Its tables and output are distinct from Portnet observations; real Portnet records do not enter this reconciliation engine.
 

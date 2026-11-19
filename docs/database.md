@@ -83,7 +83,7 @@ docker compose exec -T db psql -U portpulse -d portpulse -c 'SELECT reason_code,
 docker compose exec -T db psql -U portpulse -d portpulse -c 'SELECT issue_code, count(*) FROM public.portnet_eta_quality_issue GROUP BY issue_code ORDER BY issue_code;'
 ```
 
-Observation counts are cumulative stored records, not per-run API totals. Rejection and quality issue details are retained in their respective tables.
+Observation counts are cumulative stored records, not per-run API totals. Rejection and quality issue details are retained in their respective tables. Portnet replays avoid adding a second stored rejection or quality problem when the same semantic payload returns with a later collection timestamp. The dbt quality counters also count distinct rejected payloads, duplicate event/payload identities, and collision event IDs, so legacy repeat rows remain available for audit without inflating the dashboard counters. No schema change or data migration is needed for this behavior.
 
 ## dbt connection and troubleshooting
 

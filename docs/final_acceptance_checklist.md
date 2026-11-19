@@ -1,0 +1,79 @@
+# Final clean-clone acceptance checklist
+
+**Acceptance status: NOT RUN.** This procedure is for the project owner after reviewing the feature branch. It uses an isolated Compose project name and host ports so it does not attach to or remove another PortPulse project's volumes. Do not use `docker compose down -v`.
+
+## 1. Clone and configure isolation
+
+```sh
+git clone https://github.com/aminnkhann/portpulse.git portpulse-acceptance
+cd portpulse-acceptance
+git switch fix/final-engineering-hardening
+export COMPOSE_PROJECT_NAME=portpulse-acceptance
+export POSTGRES_PORT=15432
+export AIRFLOW_PORT=18080
+export METABASE_PORT=13000
+export KAFKA_CONNECT_PORT=18083
+```
+
+Optionally set local credentials in the shell before starting Compose. These are local demo services; do not publish the ports or reuse demo credentials outside this isolated machine.
+
+## 2. Start and inspect the stack
+
+```sh
+docker compose up --build -d
+docker compose ps
+```
+
+Expected: `db`, `metabase`, `kafka`, and `kafka-connect` become healthy; `airflow` remains running. `bi-setup`, `cdc-topic-setup`, and `cdc-setup` should exit successfully after their one-time jobs finish. If a service is still starting, inspect `docker compose logs --tail 100 <service>`; do not delete volumes to repair startup.
+
+## 3. Run the real and synthetic pipeline
+
+Open `http://localhost:18080`, sign in with the local credentials, trigger `portpulse_full_pipeline`, and wait for `fetch_real_portnet`, `generate_synthetic_eta`, `ingest_synthetic_eta`, and `build_analytics` to succeed. The real task processes one UTC day at a time; earlier daily ingestion transactions may commit even if a later day fails. A successful dbt task does not prove source freshness.
+
+The independent synthetic DAG is `portpulse_synthetic_demo`. For exact seed assertions, trigger it with `{"port_calls":1000,"seed":42}` and wait for all three tasks to succeed. The expected deterministic dataset is 1,000 fictional calls, 3,496 accepted ETA observations, 90 rejected events, 142 duplicate-delivery issues, and zero ID collisions. These synthetic records must remain in `synthetic_demo`, not the real Portnet or CDC tables.
+
+## 4. Check database assertions
+
+```sh
+docker compose exec -T db psql -U portpulse -d portpulse -c \
+  "SELECT count(*) AS observations FROM portnet_eta_observation;"
+docker compose exec -T db psql -U portpulse -d portpulse -c \
+  "SELECT count(*) AS rejected FROM portnet_eta_rejected_event;"
+docker compose exec -T db psql -U portpulse -d portpulse -c \
+  "SELECT issue_code, count(*) FROM portnet_eta_quality_issue GROUP BY issue_code ORDER BY issue_code;"
+docker compose exec -T db psql -U portpulse -d portpulse -c \
+  "SELECT count(*) AS synthetic_observations FROM synthetic_demo.eta_observation;"
+docker compose exec -T db psql -U portpulse -d portpulse -c \
+  "SELECT count(*) AS real_rows_with_synthetic_ids FROM portnet_eta_observation WHERE port_call_id LIKE 'SYNTH-%';"
+docker compose exec -T db psql -U portpulse -d portpulse -c \
+  "SELECT count(*) AS synthetic_rows_with_real_ids FROM synthetic_demo.eta_observation WHERE port_call_id LIKE 'portnet:%';"
+```
+
+Expected: the two cross-source counts are zero. `mart_portnet_latest_eta` has no rows whose `event_id` is in `mart_portnet_id_collisions`; the collision detail mart retains every conflicting stored version. The pipeline quality mart's rejected, duplicate, and collision values count unique stored problems, not poll attempts. The collection age is based on the latest recorded accepted or rejected payload and may be old even when dbt has just refreshed.
+
+## 5. Review all three dashboards
+
+Open `http://localhost:13000` and check **Portnet Overview** (real captured data only), **Synthetic ETA Analytics** (fictional events only), and **Kafka CDC Demo** (fictional CDC only). Check that the Portnet dashboard shows both latest recorded collection age and dbt refresh time with distinct labels, and that collision versions can be inspected. The live API may return no eligible observations, so do not require a fixed real-data count.
+
+## 6. Run the CDC micro-batch and check backlog
+
+In Airflow, unpause and manually trigger `portpulse_streaming_cdc`. Its `consume_cdc_batch` task is bounded to 100 records, followed by the dbt model task. Confirm that task success creates CDC history and the latest-state mart changes. This is a manually triggered micro-batch, not a continuously running consumer.
+
+Inspect the configured consumer group's pending work:
+
+```sh
+docker compose exec kafka /opt/kafka/bin/kafka-consumer-groups.sh \
+  --bootstrap-server kafka:9092 --describe --group portpulse-streaming-cdc
+```
+
+If `LAG` remains above zero, trigger the CDC DAG again and recheck until zero. The history table's `(kafka_topic, kafka_partition, kafka_offset)` uniqueness makes database replay safe. Delete tombstones do not create history rows; Debezium delete envelopes do. Offsets are not comparable across partitions. Check one call key's partition history rather than treating partition numbers as global sequence values.
+
+## 7. Repeat-run and data-quality assertions
+
+Trigger `portpulse_synthetic_demo` again with the same seed. The accepted observation count and deterministic latest ETAs should remain unchanged; unique rejected and quality-problem counts must not grow from replay alone. The run file path must be isolated per Airflow run. For Portnet, use the CLI's repeated poll summary and verify `new_observation_rows_inserted` is zero when the provider payload is unchanged; unique rejection and quality counts should remain stable. The live API can legitimately change between polls.
+
+For CDC, trigger another micro-batch after the consumer has caught up. With no new source changes, no additional CDC rows should be stored. If offsets are deliberately replayed in a controlled test, the history count must remain unchanged because topic/partition/offset is unique.
+
+## 8. Final manual outcome
+
+Record the commit tested, date, service states, Airflow run IDs, synthetic assertions, dashboard review, CDC lag before/after catch-up, and any failures here after completing the procedure. Until then the result remains **NOT RUN**.

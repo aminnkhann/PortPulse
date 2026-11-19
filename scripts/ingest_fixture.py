@@ -21,9 +21,7 @@ from scripts.event_storage import (
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / "fixtures" / "port_call_v1.jsonl"
-DEFAULT_DATABASE_URL = (
-    "postgresql://portpulse:portpulse_local_only@127.0.0.1:5432/portpulse"
-)
+DEFAULT_DATABASE_URL = "postgresql://portpulse:admin@127.0.0.1:5432/portpulse"
 HASH_FIELDS = (
     "event_id",
     "port_call_id",

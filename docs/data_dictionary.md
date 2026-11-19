@@ -10,7 +10,7 @@
 | `port_call_id` | Synthetic call identity. |
 | `source_id` | One of the three synthetic sources in the contract. |
 | `event_time_utc` | Source update time used for within-source ordering. |
-| `received_at_utc` | Fixed simulated receipt time used by freshness and delay rules. |
+| `received_at_utc` | Fixed simulated receipt time; distinct from source update, storage, and dbt refresh times. |
 | `ingested_at_utc` | PostgreSQL storage time, separate from source and simulated times. |
 | `eta_utc` | Predicted arrival time. |
 | `schema_version` | Contract version, currently `v1`. |
@@ -48,10 +48,12 @@ These tables are separate from the synthetic reconciliation `raw_event` and trus
 | Relation | Contents |
 |---|---|
 | `analytics.stg_portnet_eta` | Validated projection of accepted observations. |
-| `analytics.mart_portnet_latest_eta` | One eligible latest ETA per call and area, excluding collided event IDs. |
-| `analytics.mart_pipeline_quality` | Counts of accepted observations, rejected records, quality issues, and latest rows. |
+| `analytics.mart_portnet_latest_eta` | One eligible latest ETA per call and area, ordered by provider update time and excluding collided event IDs. |
+| `analytics.mart_portnet_id_collisions` | Every stored payload version for conflicting event identities; no conflicting ETA is selected as latest. |
+| `analytics.mart_portnet_latest_collection` | Latest recorded accepted or rejected payload collection timestamp; it cannot see successful polls returning no records. |
+| `analytics.mart_pipeline_quality` | Cumulative counts of observations and unique rejection, duplicate-delivery, and identity-collision records, plus latest rows and dbt refresh time. |
 
-The models use observation identity, provider event time, collection and ingestion times, ETA, canonical payload hash, and selected fields in `raw_payload`. Rejections contribute their reason, collection/rejection times, and details; quality issues contribute issue code, event identity, collection time, and details. Latest-row ordering uses provider update time followed by collection time, ingestion time, and observation ID.
+The models use observation identity, provider event time, collection and ingestion times, ETA, canonical payload hash, and selected fields in `raw_payload`. Rejections contribute their reason, collection/rejection times, and details; quality issues contribute issue code, event identity, collection time, and details. An identity collision is different from disagreement between independent ETA sources: only different canonical payload hashes for the same event ID are collisions. Latest-row ordering uses provider update time followed by collection time, ingestion time, and observation ID. Conflicting versions sharing an ID are all excluded from the latest mart and exposed in the collision detail mart.
 
 Per-poll counters reported by the CLI are not persisted as a run ledger. The marts summarize stored records rather than providing per-run trends.
 

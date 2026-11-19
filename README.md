@@ -1,109 +1,67 @@
 # PortPulse
 
-PortPulse collects estimated arrival times (ETAs) from Digitraffic Portnet V1, validates them with Python and Pydantic, stores them in PostgreSQL, and builds analytics marts with dbt. Airflow runs the pipeline.
+PortPulse is an educational data engineering project that captures Finnish port-call ETAs, stores provider observations, and builds queryable analytics. It also demonstrates deterministic synthetic ETA analysis and a separate PostgreSQL CDC path.
 
-## Start PortPulse
+## Architecture
 
-Install Docker Engine and Docker Compose v2, then run:
-
-```bash
-docker compose up -d
+```mermaid
+flowchart LR
+  A[Digitraffic Portnet V1] --> B[Python validation and ingestion]
+  B --> C[(PostgreSQL real data)]
+  D[Seeded synthetic events] --> E[(PostgreSQL synthetic schema)]
+  F[PostgreSQL WAL] --> G[Debezium] --> H[Kafka]
+  H --> I[Manual Airflow micro-batch] --> J[(PostgreSQL CDC history)]
+  C --> K[dbt]
+  E --> K
+  J --> K
+  K --> L[Metabase]
 ```
 
-This starts PostgreSQL, Airflow, Metabase, and a one-time setup job that builds the marts and creates the dashboards. Open [Airflow](http://localhost:8080) and [Metabase](http://localhost:3000) on your computer.
+Synthetic analytics and CDC demonstrations are fictional and remain separate from live Portnet records. The CDC consumer runs only when its Airflow DAG is triggered; it is not a continuously running end-to-end stream.
 
-Local demo logins are `admin` / `admin` for Airflow and `admin@example.test` / `portpulse-local-demo-2026` for Metabase. Override them with the variables in `.env.example`; never use the defaults in a public deployment.
+## Run locally
 
-## One-run demonstration (recommended)
-
-Start the local platform:
+Prerequisites: Docker Engine, Docker Compose v2, and a network connection for Digitraffic Portnet V1.
 
 ```sh
-docker compose up -d --build
+git clone https://github.com/aminnkhann/portpulse.git
+cd portpulse
+docker compose up --build -d
 ```
 
-Open [Airflow](http://localhost:8080) and find **`portpulse_full_pipeline`**.
-This DAG is **manual-only and unpaused on first creation**. Trigger it once
-from Airflow, or use:
+Open [Airflow](http://localhost:8080), trigger the unpaused `portpulse_full_pipeline` DAG, then open [Metabase](http://localhost:3000). The pipeline collects seven UTC dates of real Portnet data, generates 1,000 fictional calls with seed 42, and builds dbt models. The API response and observation counts depend on the live source.
+
+Metabase includes three separate dashboards: **Portnet Overview** (real source observations), **Synthetic ETA Analytics** (fictional generated events), and **Kafka CDC Demo** (fictional PostgreSQL changes).
+
+The local-only demo logins are `admin` / `admin` for Airflow and `admin@example.test` / `portpulse-local-demo-2026` for Metabase. Set local overrides in `.env`; never expose these defaults to a public deployment. Do not run `docker compose down -v`: it deletes persistent volumes. See [database operations](docs/database.md) before applying migrations to an existing database.
+
+## Tests
+
+Run Python tests in the application container and lint/format checks on a host with the development requirements installed:
 
 ```sh
-docker compose exec -T airflow airflow dags trigger portpulse_full_pipeline
-```
-
-A single run fetches the last seven UTC dates of **real Digitraffic Portnet
-V1 data**, independently generates and ingests **1,000 fictional calls**
-(seed 42), then executes `dbt build` and tests. The real and synthetic
-tables stay separate. Metabase shows the saved dashboards after the run
-finishes; it is not part of the DAG.
-
-To select a date window and a synthetic scenario, manually trigger with
-DAG configuration:
-
-```sh
-docker compose exec -T airflow airflow dags trigger portpulse_full_pipeline \
-  --conf '{"run_date":"2026-11-17","lookback_days":7,"port_calls":1000,"seed":42}'
-```
-
-`lookback_days` can be 1–30. API response volumes vary: seven requests
-do **not** guarantee a specific number of observations. Re-running the
-same scenario preserves accepted records without inserting identical
-observations again. For exact repeatability use the deterministic
-synthetic data; live Portnet responses are not fixed snapshots.
-
-The first boot requires a ready PostgreSQL database with migrations 001–010.
-Fresh Compose volumes initialize automatically; see
-[database operations](docs/database.md) for upgrading an existing volume.
-If the DAG is paused because of an existing Airflow setting, unpause it
-once in the UI or with:
-
-```sh
-docker compose exec -T airflow airflow dags unpause portpulse_full_pipeline
-```
-
-Do not run `docker compose down -v`: that deletes persistent project
-volumes. Keep the same Compose project name so you reconnect to the same
-stored dataset.
-
-## BI dashboards
-
-The **PortPulse — Portnet Overview** dashboard shows only real Portnet mart data. It stays empty until Portnet observations have been ingested. The **PortPulse — Kafka CDC Demo (SIMULATED DATA)** dashboard shows the separate simulated CDC example.
-
-![Portnet overview dashboard showing an honest empty state](docs/images/portnet_overview.png)
-
-![Kafka CDC dashboard labeled as simulated data](docs/images/cdc_demo.png)
-
-Kafka and Debezium start with the same command. Compose also registers the CDC connector automatically. The streaming Airflow DAG remains paused until you choose to run the simulation. See the [Metabase guide](docs/metabase.md) and [CDC guide](docs/streaming_cdc.md) for details.
-
-## Run the Portnet pipeline
-
-The `portpulse_daily_pipeline` DAG starts paused. In Airflow, unpause it to use its 06:00 UTC schedule, or trigger it manually. To trigger from the command line:
-
-```bash
-docker compose exec airflow airflow dags trigger portpulse_daily_pipeline
-```
-
-## Data and limits
-
-Portnet V1 provides Finnish maritime data, not Hamburg operational port data. Availability and ETA coverage depend on [Digitraffic](https://www.digitraffic.fi/en/marine-traffic/). The latest-ETA mart contains the current record per port call and area; the quality mart is a current snapshot, not a historical trend.
-
-PortPulse is a local learning project, not a production maritime tracking service. Do not expose Airflow, PostgreSQL, Metabase, Kafka, or Kafka Connect to the public internet.
-
-## Documentation and tests
-
-- [Architecture](ARCHITECTURE.md)
-- [Database operations](docs/database.md)
-- [Data dictionary](docs/data_dictionary.md)
-- [Streaming CDC demonstration](docs/streaming_cdc.md)
-- [Synthetic maritime ETA dataset](docs/synthetic_eta.md)
-- [Metabase setup and troubleshooting](docs/metabase.md)
-
-Run the Python tests in Airflow. Install the development-only Ruff dependency on your host to check formatting and lint:
-
-```bash
 docker compose exec airflow python -m unittest discover -s tests -v
 python -m pip install -r requirements-dev.txt
 ruff check .
 ruff format --check .
 ```
 
-Stop the services with `docker compose down`. This preserves database, Airflow, Kafka, and Metabase volumes.
+## Known limitations
+
+- This is a local educational project, not a production service. Large-scale performance has not been demonstrated; ingestion writes rows individually and dbt rebuilds full tables.
+- The adapter uses Digitraffic Port Call V1. V1 will eventually stop providing new data; a V2 adapter is future work.
+- Pydantic validates normalized event models. It does not validate every raw API message.
+- Actual vessel arrival timestamps are not persisted for comparing estimates with outcomes, so the project does not establish ETA prediction accuracy.
+- ETA lead time and changes to a fictional or live ETA are not actual vessel delay.
+- Portnet source update, collection, database ingestion, and dbt refresh times have different meanings. A successful dbt run does not establish that the source is fresh.
+
+## Documentation
+
+- [Architecture](ARCHITECTURE.md)
+- [Database operations and migration notes](docs/database.md)
+- [Data dictionary](docs/data_dictionary.md)
+- [Metabase dashboards](docs/metabase.md)
+- [Synthetic ETA demo](docs/synthetic_eta.md)
+- [CDC guide and catch-up procedure](docs/streaming_cdc.md)
+- [Final clean-clone acceptance checklist](docs/final_acceptance_checklist.md)
+- [Presentation query (result awaiting verification)](docs/presentation_finding.md)

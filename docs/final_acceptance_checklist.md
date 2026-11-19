@@ -85,7 +85,7 @@ Check the new scenario's operation history and final mart state:
 
 ```sh
 docker compose exec -T db psql -U portpulse -d portpulse -c \
-  "SELECT cdc_operation, count(*) FROM stream_demo.port_eta_cdc_event WHERE scenario_id = '$SCENARIO_ID' GROUP BY cdc_operation ORDER BY cdc_operation;"
+  "SELECT operation, count(*) FROM stream_demo.port_eta_cdc_event WHERE scenario_id = '$SCENARIO_ID' GROUP BY operation ORDER BY operation;"
 docker compose exec -T db psql -U portpulse -d portpulse -c \
   "SELECT port_call_id, eta_utc FROM analytics.mart_stream_latest_eta WHERE scenario_id = '$SCENARIO_ID' ORDER BY port_call_id;"
 ```

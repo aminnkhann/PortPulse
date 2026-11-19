@@ -2,6 +2,7 @@
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -41,6 +42,17 @@ def row(
         "eta_utc": eta,
         "updated_at_utc": updated,
     }
+
+
+def acceptance_history_query():
+    guide = Path(__file__).resolve().parents[1] / "docs/final_acceptance_checklist.md"
+    match = re.search(
+        r'"(SELECT [^"\n]+ FROM stream_demo\.port_eta_cdc_event[^"\n]+)"',
+        guide.read_text(),
+    )
+    if not match:
+        raise AssertionError("CDC history query is missing from the acceptance guide")
+    return match.group(1)
 
 
 class DebeziumMessageTests(unittest.TestCase):
@@ -99,7 +111,30 @@ class DebeziumMessageTests(unittest.TestCase):
         connect.assert_called_once_with("unused")
 
 
+class CdcAcceptanceChecklistTests(unittest.TestCase):
+    def test_history_query_uses_the_migration_008_column_name(self):
+        root = Path(__file__).resolve().parents[1]
+        migration = (
+            root / "migrations/008_create_streaming_cdc_tables.sql"
+        ).read_text()
+        query = acceptance_history_query()
+        self.assertRegex(migration, r"(?m)^\s*operation TEXT NOT NULL")
+        self.assertIn("SELECT operation, count(*)", query)
+        self.assertNotIn("cdc_operation", query)
+
+
 class CdcPostgresReplayTests(unittest.TestCase):
+    def test_acceptance_history_query_executes_against_postgres(self):
+        database_url = os.environ.get("PORTPULSE_TEST_DATABASE_URL")
+        if not database_url:
+            self.skipTest("set PORTPULSE_TEST_DATABASE_URL for PostgreSQL checks")
+        query = acceptance_history_query().replace(
+            "$SCENARIO_ID", f"schema-check-{uuid.uuid4().hex}"
+        )
+        with psycopg.connect(database_url) as connection:
+            rows = connection.execute(query).fetchall()
+        self.assertEqual(rows, [])
+
     def test_ten_replays_keep_one_history_and_expected_dbt_state(self):
         database_url = os.environ.get("PORTPULSE_TEST_DATABASE_URL")
         if not database_url:

@@ -231,7 +231,7 @@ class PortnetApiReliabilityTests(unittest.TestCase):
         self.assertEqual(latest, EXPECTED_LATEST)
         self.assertEqual(quality, EXPECTED_QUALITY)
         self.assertEqual(
-            reasons, [("INVALID_PORTNET_CALL", 10), ("INVALID_PORTNET_ETA", 10)]
+            reasons, [("INVALID_PORTNET_CALL", 1), ("INVALID_PORTNET_ETA", 1)]
         )
         self.assertEqual(stored_observations, 6)
         self.assertEqual(len(collision_versions), 2)

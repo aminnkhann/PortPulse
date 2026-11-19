@@ -173,7 +173,7 @@ Improvements:
 **Important gaps:**
 
 - `.github/workflows/bi-smoke.yml` and `.github/workflows/cdc-smoke.yml` are **manual dispatch**; they are not run on every PR or default-branch commit. Fresh Compose success is therefore not part of normal merge gating.
-- `cdc-smoke.yml` includes an old `docker compose --profile streaming up --build -d` command although the current Compose file has no `streaming` profiles, and its direct host invocation of `scripts/register_cdc_connector.py` expects Compose networking. Review and modernize this workflow **before claiming it validates the current stack**.
+- `cdc-smoke.yml` includes an obsolete `docker compose --profile streaming up --build -d` command, although the current Compose file has no `streaming` profiles. This is unnecessary and should be simplified. Its host-side connector registration relies on `localhost:8083`, which **is published by the current Compose file**; that alone is not a confirmed failure. Review and rerun the workflow **before claiming it validates the current stack**.
 - Add a single **fresh-stack acceptance job** that performs the main DAG and CDC end-to-end with bounded timeouts, and checks counts and dashboard readiness. This can initially be a manual release gate rather than every-commit CI to control resources.
 - Add a test of `docker compose config` / actual one-shot topic creation so CLI-argument errors cannot escape as in #33.
 - Pin dependencies deliberately; current Python requirement ranges for some libraries mean installs can change over time. The intended level of reproducibility is deterministic pipeline logic, not bit-identical package resolutions unless lock/constraint files are used.

@@ -13,8 +13,10 @@ from psycopg.types.json import Jsonb
 
 from scripts.event_model import PortCallEvent
 from scripts.event_storage import (
+    FIXTURE_INGESTION_LOCK,
     existing_hashes,
     insert_quality_issue,
+    lock_ingestion,
     record_payload_hash,
 )
 
@@ -195,6 +197,7 @@ def store_fixture(valid, rejected, record_existing_duplicates=False, database_ur
 
     with psycopg.connect(database_url) as connection:
         with connection.cursor() as cursor:
+            lock_ingestion(cursor, FIXTURE_INGESTION_LOCK)
             prior_hashes = defaultdict(set)
             if record_existing_duplicates:
                 event_ids = sorted({event["event_id"] for event, _ in unique_events})

@@ -19,8 +19,10 @@ from psycopg.types.json import Jsonb
 from scripts import ingest_fixture
 from scripts.event_model import MarineEtaEvent, PortnetEtaPayload
 from scripts.event_storage import (
+    PORTNET_INGESTION_LOCK,
     existing_hashes,
     insert_quality_issue,
+    lock_ingestion,
     record_payload_hash,
 )
 
@@ -326,6 +328,7 @@ def store_observations(events, rejected, database_url, grouped_events=None):
 
     with psycopg.connect(database_url) as connection:
         with connection.cursor() as cursor:
+            lock_ingestion(cursor, PORTNET_INGESTION_LOCK)
             existing = existing_hashes(cursor, "portnet_eta_observation", event_ids)
 
             for item in rejected:

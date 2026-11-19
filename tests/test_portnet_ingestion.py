@@ -1,12 +1,17 @@
 """Portnet V1 normalization and persistence checks."""
 
+from concurrent.futures import ThreadPoolExecutor
+from threading import Barrier
+from time import monotonic, sleep
 import unittest
 from datetime import datetime
 from unittest.mock import patch
 
 import psycopg
+from psycopg.conninfo import make_conninfo
 
 from scripts import ingest_portnet
+from scripts.event_storage import PORTNET_INGESTION_LOCK
 from tests.postgres import apply_migrations, create_test_schema
 
 
@@ -154,6 +159,81 @@ class PortnetPostgresTests(unittest.TestCase):
                 "WHERE issue_code = 'EXACT_DUPLICATE')"
             ).fetchone()
         self.assertEqual(counts, (1, 1))
+
+    def test_concurrent_replays_keep_one_rejection_and_record_one_duplicate(self):
+        event = self._portnet_event()
+        invalid_call = {
+            "portCallId": 907,
+            "portAreaDetails": [
+                {
+                    "portAreaCode": "VUOS",
+                    "eta": "bad-time",
+                    "etaTimestamp": "2026-11-10T07:00:00Z",
+                }
+            ],
+        }
+        _, rejected, _ = ingest_portnet.normalize_data([invalid_call], RECEIVED_AT)
+        start_together = Barrier(3)
+        original_lock = ingest_portnet.lock_ingestion
+
+        def simultaneous_lock(cursor, lock_name):
+            start_together.wait(timeout=10)
+            return original_lock(cursor, lock_name)
+
+        concurrent_url = make_conninfo(
+            self.database_url, application_name="portpulse-ingestion-concurrency-test"
+        )
+        with psycopg.connect(self.database_url) as blocker:
+            blocker.execute(
+                "SELECT pg_advisory_xact_lock(hashtext(%s))",
+                (PORTNET_INGESTION_LOCK,),
+            )
+            with patch.object(
+                ingest_portnet, "lock_ingestion", side_effect=simultaneous_lock
+            ):
+                with ThreadPoolExecutor(max_workers=2) as pool:
+                    futures = [
+                        pool.submit(
+                            ingest_portnet.store_observations,
+                            [event],
+                            rejected,
+                            concurrent_url,
+                        )
+                        for _ in range(2)
+                    ]
+                    start_together.wait(timeout=10)
+                    deadline = monotonic() + 5
+                    waiting = 0
+                    try:
+                        while monotonic() < deadline:
+                            waiting = blocker.execute(
+                                """SELECT count(*) FROM pg_locks l
+                                   JOIN pg_stat_activity a ON a.pid = l.pid
+                                   WHERE l.locktype = 'advisory' AND NOT l.granted
+                                     AND a.application_name = %s""",
+                                ("portpulse-ingestion-concurrency-test",),
+                            ).fetchone()[0]
+                            if waiting == 2:
+                                break
+                            sleep(0.01)
+                        self.assertEqual(waiting, 2)
+                    finally:
+                        blocker.commit()
+                    results = [future.result(timeout=15) for future in futures]
+
+        with psycopg.connect(self.database_url) as connection:
+            counts = connection.execute(
+                "SELECT (SELECT count(*) FROM portnet_eta_observation "
+                "WHERE event_id = %s), "
+                "(SELECT count(*) FROM portnet_eta_rejected_event "
+                "WHERE port_call_id = 'portnet:907'), "
+                "(SELECT count(*) FROM portnet_eta_quality_issue "
+                "WHERE issue_code = 'EXACT_DUPLICATE' AND event_id = %s)",
+                (event["event_id"], event["event_id"]),
+            ).fetchone()
+        self.assertEqual(counts, (1, 1, 1))
+        self.assertEqual(sum(result[1] for result in results), 1)
+        self.assertEqual(sum(result[3] for result in results), 1)
 
     def test_invalid_eta_is_persisted_in_quarantine(self):
         call = {

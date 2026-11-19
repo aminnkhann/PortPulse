@@ -13,6 +13,12 @@ from psycopg import sql
 BASE_URL = os.getenv("METABASE_URL", "http://metabase:3000").rstrip("/")
 ROLE = "metabase_reader"
 COLLECTION = "PortPulse"
+LEGACY_CARD_NAMES = {
+    "Unique rejected records": ("Rejected observations",),
+    "Unique duplicate-delivery problems": ("Duplicate issues",),
+    "Identity collision groups": ("Collision issues",),
+    "dbt mart refreshed at (UTC)": ("Mart refreshed at (UTC)",),
+}
 DASHBOARDS = {
     "PortPulse — Portnet Overview": {
         "Accepted observations": (
@@ -403,6 +409,14 @@ def collection_items(collection_id, session):
     return result if isinstance(result, list) else result["data"]
 
 
+def legacy_card_names(name):
+    old_names = LEGACY_CARD_NAMES.get(name, ())
+    names = list(old_names)
+    for old_name in (name, *old_names):
+        names.extend((f"Portnet — {old_name}", f"CDC — {old_name}"))
+    return tuple(dict.fromkeys(names))
+
+
 def get_session(admin_email, admin_password):
     setup = request("/api/session/properties")
     if setup.get("setup-token"):
@@ -470,20 +484,30 @@ def verify_card_queries(session, card_ids):
             )
 
 
-def setup_cards_and_dashboards(session, database_id):
-    collection = find_or_create_collection(session)
+def setup_cards(session, collection, database_id):
     items = collection_items(collection["id"], session)
+    items_by_name = {}
+    for item in items:
+        if item.get("model") == "card":
+            items_by_name.setdefault(item.get("name"), item)
+    configured_names = {name for questions in DASHBOARDS.values() for name in questions}
+    legacy_names = {
+        old_name for name in configured_names for old_name in legacy_card_names(name)
+    }
+    legacy_card_ids = {
+        item["id"]
+        for item in items
+        if item.get("model") == "card" and item.get("name") in legacy_names
+    }
     card_ids = {}
     for dashboard_name, questions in DASHBOARDS.items():
         for name, question in questions.items():
             display, query, layout = question
-            old_names = {f"Portnet — {name}", f"CDC — {name}"}
-            existing = next(
+            existing = items_by_name.get(name) or next(
                 (
-                    item
-                    for item in items
-                    if item.get("name") in {name, *old_names}
-                    and item.get("model") == "card"
+                    items_by_name[old_name]
+                    for old_name in legacy_card_names(name)
+                    if old_name in items_by_name
                 ),
                 None,
             )
@@ -505,38 +529,58 @@ def setup_cards_and_dashboards(session, database_id):
                 else request("/api/card", "POST", card, session)
             )
             card_ids[name] = result["id"]
+    return card_ids, legacy_card_ids
 
+
+def dashboard_id(session, name, collection_id, dashboards):
+    existing = next((item for item in dashboards if item.get("name") == name), None)
+    if existing:
+        return existing["id"]
+    created = request(
+        "/api/dashboard",
+        "POST",
+        {"name": name, "collection_id": collection_id},
+        session,
+    )
+    return created["id"]
+
+
+def sync_dashboard(session, dashboard_id, questions, card_ids, legacy_card_ids):
+    current = request(f"/api/dashboard/{dashboard_id}", session=session)
+    managed_card_ids = set(card_ids.values())
+    dashcards = []
+    seen_managed_cards = set()
+    for item in current.get("dashcards", []):
+        card_id = item.get("card_id")
+        if card_id in legacy_card_ids and card_id not in managed_card_ids:
+            continue
+        if card_id in managed_card_ids:
+            if card_id in seen_managed_cards:
+                continue
+            seen_managed_cards.add(card_id)
+        dashcards.append(item)
+    for name, question in questions.items():
+        card_id = card_ids[name]
+        dashcard = next(
+            (item for item in dashcards if item.get("card_id") == card_id), None
+        )
+        if dashcard is None:
+            dashcard = {"id": -len(dashcards) - 1, "card_id": card_id}
+            dashcards.append(dashcard)
+        row, col, width, height = question[2]
+        dashcard.update({"row": row, "col": col, "size_x": width, "size_y": height})
+    request(f"/api/dashboard/{dashboard_id}", "PUT", {"dashcards": dashcards}, session)
+
+
+def setup_cards_and_dashboards(session, database_id):
+    collection = find_or_create_collection(session)
+    card_ids, legacy_card_ids = setup_cards(session, collection, database_id)
     dashboards = request("/api/dashboard", session=session)
     dashboards = dashboards if isinstance(dashboards, list) else dashboards["data"]
-    for dashboard_name, questions in DASHBOARDS.items():
-        dashboard = next(
-            (item for item in dashboards if item.get("name") == dashboard_name), None
-        )
-        if dashboard:
-            dashboard_id = dashboard["id"]
-        else:
-            dashboard_id = request(
-                "/api/dashboard",
-                "POST",
-                {"name": dashboard_name, "collection_id": collection["id"]},
-                session,
-            )["id"]
-        current = request(f"/api/dashboard/{dashboard_id}", session=session)
-        dashcards = current.get("dashcards", [])
-        for name, question in questions.items():
-            card_id = card_ids[name]
-            dashcard = next(
-                (item for item in dashcards if item.get("card_id") == card_id), None
-            )
-            if dashcard is None:
-                dashcard = {"id": -len(dashcards) - 1, "card_id": card_id}
-                dashcards.append(dashcard)
-            row, col, width, height = question[2]
-            dashcard.update({"row": row, "col": col, "size_x": width, "size_y": height})
-        request(
-            f"/api/dashboard/{dashboard_id}", "PUT", {"dashcards": dashcards}, session
-        )
-        print(f"Dashboard ready: {BASE_URL}/dashboard/{dashboard_id}")
+    for name, questions in DASHBOARDS.items():
+        current_id = dashboard_id(session, name, collection["id"], dashboards)
+        sync_dashboard(session, current_id, questions, card_ids, legacy_card_ids)
+        print(f"Dashboard ready: {BASE_URL}/dashboard/{current_id}")
     verify_card_queries(session, card_ids)
 
 

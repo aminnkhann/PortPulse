@@ -6,6 +6,14 @@ from psycopg import sql
 from psycopg.types.json import Jsonb
 
 
+PORTNET_INGESTION_LOCK = "portpulse:portnet-eta-ingestion"
+FIXTURE_INGESTION_LOCK = "portpulse:fixture-ingestion"
+
+
+def lock_ingestion(cursor, lock_name):
+    cursor.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", (lock_name,))
+
+
 def existing_hashes(cursor, table_name, event_ids):
     hashes = defaultdict(set)
     if event_ids:

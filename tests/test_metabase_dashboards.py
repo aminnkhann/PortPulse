@@ -1,11 +1,125 @@
 """Regression checks for the real and simulated Metabase dashboards."""
 
+from copy import deepcopy
 import unittest
+from unittest.mock import patch
 
-from scripts.setup_metabase import DASHBOARDS
+from scripts.setup_metabase import DASHBOARDS, setup_cards_and_dashboards
+
+
+class MetabaseApiStub:
+    def __init__(self, state):
+        self.state = state
+
+    def __call__(self, path, method="GET", payload=None, session=None):
+        if path == "/api/collection":
+            return [{"id": 1, "name": "PortPulse"}]
+        if path == "/api/collection/1/items":
+            return deepcopy(list(self.state["cards"].values()))
+        if path.startswith("/api/dashboard"):
+            return self.dashboard(path, method, payload)
+        if path.startswith("/api/card"):
+            return self.card(path, method, payload)
+        raise AssertionError(f"Unexpected Metabase request: {method} {path}")
+
+    def dashboard(self, path, method, payload):
+        if path == "/api/dashboard" and method == "GET":
+            return deepcopy(self.state["dashboards"])
+        if path == "/api/dashboard":
+            dashboard_id = self.state["next_dashboard_id"]
+            self.state["next_dashboard_id"] += 1
+            self.state["dashboards"].append(
+                {"id": dashboard_id, "name": payload["name"]}
+            )
+            self.state["dashcards"][dashboard_id] = []
+            return {"id": dashboard_id}
+        dashboard_id = int(path.rsplit("/", 1)[1])
+        if method == "GET":
+            return {
+                "id": dashboard_id,
+                "dashcards": deepcopy(self.state["dashcards"][dashboard_id]),
+            }
+        self.state["dashcards"][dashboard_id] = deepcopy(payload["dashcards"])
+        return {"id": dashboard_id}
+
+    def card(self, path, method, payload):
+        if path.endswith("/query"):
+            return {"status": "completed"}
+        if path == "/api/card":
+            card_id = self.state["next_card_id"]
+            self.state["next_card_id"] += 1
+            self.state["created_cards"] += 1
+        else:
+            card_id = int(path.rsplit("/", 1)[1])
+        self.state["cards"][card_id] = {
+            **deepcopy(payload),
+            "id": card_id,
+            "model": "card",
+        }
+        return {"id": card_id}
 
 
 class DashboardDefinitionsTests(unittest.TestCase):
+    def test_legacy_dashboard_cards_are_migrated_without_duplicates(self):
+        state = {
+            "cards": {
+                card_id: {"id": card_id, "name": name, "model": "card"}
+                for card_id, name in (
+                    (10, "Rejected observations"),
+                    (11, "Duplicate issues"),
+                    (12, "Collision issues"),
+                    (13, "Mart refreshed at (UTC)"),
+                    (14, "Portnet — Rejected observations"),
+                    (99, "My saved question"),
+                )
+            },
+            "dashboards": [
+                {"id": 1, "name": "PortPulse — Portnet Overview"},
+                {"id": 2, "name": "My dashboard"},
+            ],
+            "dashcards": {
+                1: [
+                    {"id": card_id, "card_id": card_id}
+                    for card_id in (10, 11, 12, 13, 14, 99, 10)
+                ],
+                2: [{"id": 90, "card_id": 99}],
+            },
+            "next_card_id": 100,
+            "next_dashboard_id": 3,
+            "created_cards": 0,
+        }
+
+        custom_dashboard_before = deepcopy(state["dashcards"][2])
+        with patch(
+            "scripts.setup_metabase.request", side_effect=MetabaseApiStub(state)
+        ):
+            setup_cards_and_dashboards("session", 1)
+            first_card_count = len(state["cards"])
+            first_create_count = state["created_cards"]
+            setup_cards_and_dashboards("session", 1)
+
+        portnet = state["dashcards"][1]
+        referenced_ids = [item["card_id"] for item in portnet]
+        current_names = set(DASHBOARDS["PortPulse — Portnet Overview"])
+        current_cards = {
+            item["name"]: item
+            for item in state["cards"].values()
+            if item["name"] in current_names
+        }
+        self.assertEqual(len(current_cards), len(current_names))
+        for name, card in current_cards.items():
+            self.assertEqual(referenced_ids.count(card["id"]), 1, name)
+        self.assertNotIn(14, referenced_ids)
+        self.assertIn(99, referenced_ids)
+        self.assertEqual(state["cards"][10]["name"], "Unique rejected records")
+        self.assertIn(
+            "unique_rejected_records",
+            state["cards"][10]["dataset_query"]["native"]["query"],
+        )
+        self.assertEqual(state["dashcards"][2], custom_dashboard_before)
+        self.assertEqual(len(state["cards"]), first_card_count)
+        self.assertEqual(state["created_cards"], first_create_count)
+
     def test_dashboards_keep_real_and_simulated_data_separate(self):
         real = DASHBOARDS["PortPulse — Portnet Overview"]
         synthetic = DASHBOARDS["PortPulse — Synthetic ETA Analytics (SIMULATED DATA)"]

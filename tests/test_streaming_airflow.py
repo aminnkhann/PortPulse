@@ -1,8 +1,12 @@
 """Structure checks for the optional streaming Airflow DAG."""
 
 import unittest
+from unittest.mock import patch
 
-from dags.portpulse_streaming_cdc import dag as streaming_dag
+from dags.portpulse_streaming_cdc import (
+    build_streaming_dbt_models,
+    dag as streaming_dag,
+)
 
 
 class StreamingDagTests(unittest.TestCase):
@@ -22,6 +26,11 @@ class StreamingDagTests(unittest.TestCase):
             streaming_dag.get_task("build_streaming_dbt_models").downstream_task_ids,
             set(),
         )
+
+    @patch("dags.portpulse_streaming_cdc.subprocess.run")
+    def test_build_runs_partition_guard_data_test(self, run):
+        build_streaming_dbt_models()
+        self.assertIn("assert_stream_key_single_partition", run.call_args.args[0])
 
 
 if __name__ == "__main__":

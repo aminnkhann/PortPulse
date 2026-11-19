@@ -119,6 +119,7 @@ class CdcPostgresReplayTests(unittest.TestCase):
         first = scenario_row("SIM-001", "2026-11-13T15:00:00Z", "2026-11-13T10:00:00Z")
         second = scenario_row("SIM-001", "2026-11-13T15:30:00Z", "2026-11-13T10:02:00Z")
         final = scenario_row("SIM-001", "2026-11-13T14:50:00Z", "2026-11-13T10:04:00Z")
+        late = scenario_row("SIM-001", "2026-11-13T18:00:00Z", "2026-11-13T10:03:00Z")
         deleted = scenario_row(
             "SIM-002", "2026-11-13T17:00:00Z", "2026-11-13T10:06:00Z"
         )
@@ -126,6 +127,7 @@ class CdcPostgresReplayTests(unittest.TestCase):
             message({"op": "c", "before": None, "after": first}, 0, 0),
             message({"op": "u", "before": first, "after": second}, 1, 0),
             message({"op": "u", "before": second, "after": final}, 2, 0),
+            message({"op": "u", "before": final, "after": late}, 3, 0),
             message({"op": "c", "before": None, "after": deleted}, 0, 1),
             message({"op": "d", "before": deleted, "after": None}, 1, 1),
         ]
@@ -140,7 +142,7 @@ class CdcPostgresReplayTests(unittest.TestCase):
                        WHERE scenario_id = %s""",
                     (scenario,),
                 ).fetchone()[0]
-            self.assertEqual(count, 5)
+            self.assertEqual(count, 6)
 
             settings = conninfo_to_dict(database_url)
             env = os.environ.copy()
@@ -170,6 +172,7 @@ class CdcPostgresReplayTests(unittest.TestCase):
                         "--select",
                         "stg_stream_eta_changes",
                         "mart_stream_latest_eta",
+                        "assert_stream_key_single_partition",
                         "--log-path",
                         str(temp / "logs"),
                         "--target-path",

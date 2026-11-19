@@ -92,6 +92,10 @@ docker compose exec airflow airflow dags trigger portpulse_streaming_cdc
 
 It polls no more than 100 records per run, in batches of up to 50, with a five-second poll timeout. Each database batch commits before the Kafka operator commits offsets. If a retry sees a previously stored topic/partition/offset, PostgreSQL ignores that duplicate. After the consumer succeeds, Airflow runs `dbt build`; dbt runs the streaming model checks, including latest-row identity uniqueness and accepted CDC operation values. A failed check fails the build task. The DAG is manual-only, so unpausing it does not schedule recurring runs. Pause it again after your demonstration if desired.
 
+This is a manually triggered micro-batch consumer, not a continuously running end-to-end stream. A run can process at most 100 Kafka records, including tombstones; tombstones are ignored for row history, while Kafka offsets are committed after a successful operator run. To inspect pending work, run `docker compose exec kafka /opt/kafka/bin/kafka-consumer-groups.sh --bootstrap-server kafka:9092 --describe --group portpulse-streaming-cdc`. If `LAG` is above zero, trigger the DAG again and recheck until the lag is zero. The CDC table's topic/partition/offset key makes replays safe. An Airflow run can commit its database batch before a later task fails, so retrying may observe already stored messages.
+
+The latest-state model orders by Debezium's source `updated_at_utc`, then Kafka partition and offset only as tie-breakers. Kafka offsets are comparable only within one partition. The simulator's primary key is the Kafka message key, so each call-area key is expected to stay in one partition; changing partition count or key configuration invalidates that ordering assumption.
+
 Inspect stored events and ETAs:
 
 ```sh

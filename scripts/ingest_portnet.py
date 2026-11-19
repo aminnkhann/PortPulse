@@ -4,9 +4,11 @@ import argparse
 import gzip
 import json
 import os
+import time
 from collections import Counter
-from datetime import date, datetime, time, timezone
-from urllib.error import URLError
+from datetime import date, datetime, time as day_time, timezone
+from email.utils import parsedate_to_datetime
+from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlencode
 from urllib.request import Request, urlopen
 
@@ -25,6 +27,20 @@ from scripts.event_storage import (
 
 PORTNET_URL = "https://meri.digitraffic.fi/api/port-call/v1/port-calls"
 USER_AGENT = "PortPulse/0.1"
+MAX_FETCH_ATTEMPTS = 3
+
+
+def _retry_delay(error, attempt):
+    retry_after = error.headers.get("Retry-After") if error.headers else None
+    try:
+        return max(0, min(30, int(retry_after)))
+    except (TypeError, ValueError):
+        try:
+            retry_at = parsedate_to_datetime(retry_after)
+            seconds = (retry_at - datetime.now(timezone.utc)).total_seconds()
+            return max(0, min(30, int(seconds)))
+        except (TypeError, ValueError, OverflowError):
+            return 2**attempt
 
 
 def fetch_json(url):
@@ -37,18 +53,30 @@ def fetch_json(url):
             "Digitraffic-User": USER_AGENT,
         },
     )
-    try:
-        with urlopen(request, timeout=20) as response:
-            body = response.read()
-            if response.headers.get("Content-Encoding") == "gzip":
-                body = gzip.decompress(body)
-            return json.loads(body)
-    except (URLError, OSError, json.JSONDecodeError) as error:
-        raise RuntimeError(f"Portnet request failed: {error}") from error
+    for attempt in range(MAX_FETCH_ATTEMPTS):
+        try:
+            with urlopen(request, timeout=20) as response:
+                body = response.read()
+                if response.headers.get("Content-Encoding") == "gzip":
+                    body = gzip.decompress(body)
+                return json.loads(body)
+        except HTTPError as error:
+            if error.code != 429 and not 500 <= error.code <= 599:
+                raise RuntimeError(f"Portnet request failed: {error}") from error
+            if attempt + 1 == MAX_FETCH_ATTEMPTS:
+                raise RuntimeError(f"Portnet request failed: {error}") from error
+            time.sleep(_retry_delay(error, attempt))
+        except (URLError, OSError) as error:
+            if attempt + 1 == MAX_FETCH_ATTEMPTS:
+                raise RuntimeError(f"Portnet request failed: {error}") from error
+            time.sleep(2**attempt)
+        except json.JSONDecodeError as error:
+            raise RuntimeError(f"Portnet request failed: {error}") from error
+    raise RuntimeError("Portnet request failed after bounded retries")
 
 
 def fetch_port_calls(port, day):
-    start = datetime.combine(day, time.min, tzinfo=timezone.utc)
+    start = datetime.combine(day, day_time.min, tzinfo=timezone.utc)
     filters = {"date": start.isoformat().replace("+00:00", "Z")}
     if port:
         filters["locode"] = port
@@ -305,12 +333,22 @@ def store_observations(events, rejected, database_url, grouped_events=None):
                     """INSERT INTO portnet_eta_rejected_event
                        (event_id, port_call_id, received_at_utc, reason_code,
                         raw_payload, details)
-                       VALUES (%s, %s, %s, %s, %s, %s)""",
+                       SELECT %s, %s, %s, %s, %s, %s
+                       WHERE NOT EXISTS (
+                           SELECT 1 FROM portnet_eta_rejected_event
+                           WHERE reason_code = %s
+                             AND event_id IS NOT DISTINCT FROM %s
+                             AND raw_payload = %s AND details = %s
+                       )""",
                     (
                         item.get("event_id"),
                         item.get("port_call_id"),
                         ingest_fixture.timestamp(item, "received_at_utc"),
                         item["reason_code"],
+                        Jsonb(item["raw_payload"]),
+                        Jsonb(item["details"]),
+                        item["reason_code"],
+                        item.get("event_id"),
                         Jsonb(item["raw_payload"]),
                         Jsonb(item["details"]),
                     ),
@@ -332,6 +370,7 @@ def store_observations(events, rejected, database_url, grouped_events=None):
                         ingest_fixture.timestamp(event, "received_at_utc"),
                         event,
                         {"payload_sha256": payload_hash},
+                        deduplicate=True,
                     )
                 elif identity == "collision":
                     collisions[event["event_id"]] = sorted(existing[event["event_id"]])
@@ -365,6 +404,7 @@ def store_observations(events, rejected, database_url, grouped_events=None):
                     ingest_fixture.timestamp(event, "received_at_utc"),
                     event,
                     {"payload_sha256": payload_hash},
+                    deduplicate=True,
                 )
 
             for event_id, hashes in collisions.items():
@@ -380,6 +420,7 @@ def store_observations(events, rejected, database_url, grouped_events=None):
                     None,
                     None,
                     {"payload_hashes": hashes, "variant_count": len(hashes)},
+                    deduplicate=True,
                 )
 
     return len(unique_events), duplicate_count, len(collisions), inserted_count
@@ -400,6 +441,7 @@ def main():
     )
     args = parser.parse_args()
 
+    port_calls = fetch_port_calls(args.port, args.date)
     received_at = (
         datetime.now(timezone.utc)
         .isoformat(timespec="microseconds")
@@ -408,7 +450,6 @@ def main():
             "Z",
         )
     )
-    port_calls = fetch_port_calls(args.port, args.date)
     events, rejected, metrics = normalize_data(port_calls, received_at)
     grouped_events = ingest_fixture.group_events(events)
     _, duplicate_events, _ = grouped_events

@@ -28,6 +28,16 @@ models:
         data_tests:
           - not_null
 
+  - name: mart_portnet_id_collisions
+    description: Conflicting payload versions sharing one Portnet event identity; excluded from latest ETA selection.
+    columns:
+      - name: event_id
+        data_tests:
+          - not_null
+      - name: canonical_payload_sha256
+        data_tests:
+          - not_null
+
   - name: stg_stream_eta_changes
     columns:
       - name: event_id

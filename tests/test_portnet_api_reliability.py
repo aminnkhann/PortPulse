@@ -64,7 +64,7 @@ EXPECTED_LATEST = [
         datetime(2026, 11, 10, 15, 0, tzinfo=timezone.utc),
     ),
 ]
-EXPECTED_QUALITY = (6, 20, 64, 10, 3)
+EXPECTED_QUALITY = (6, 2, 6, 1, 3)
 
 
 def replay_portnet_api_response(database_url):
@@ -148,18 +148,24 @@ def read_portnet_marts(database_url):
             "ORDER BY port_call_id, port_area_code"
         ).fetchall()
         quality = connection.execute(
-            "SELECT accepted_observations, rejected_observations, "
-            "duplicate_issue_rows, collision_issue_rows, latest_eta_records "
+            "SELECT accepted_observations, unique_rejected_records, "
+            "unique_duplicate_delivery_problems, identity_collision_groups, "
+            "latest_eta_records "
             "FROM analytics.mart_pipeline_quality"
         ).fetchone()
         reasons = connection.execute(
             "SELECT reason_code, count(*) FROM portnet_eta_rejected_event "
             "GROUP BY reason_code ORDER BY reason_code"
         ).fetchall()
+        collision_versions = connection.execute(
+            "SELECT eta_utc FROM analytics.mart_portnet_id_collisions "
+            "WHERE event_id = 'portnet:2002:KATA:2026-11-10T09:00:00.000000Z' "
+            "ORDER BY eta_utc"
+        ).fetchall()
         stored_observations = connection.execute(
             "SELECT count(*) FROM portnet_eta_observation"
         ).fetchone()[0]
-    return latest, quality, reasons, stored_observations
+    return latest, quality, reasons, stored_observations, collision_versions
 
 
 class PortnetApiReliabilityTests(unittest.TestCase):
@@ -215,15 +221,21 @@ class PortnetApiReliabilityTests(unittest.TestCase):
 
         built = build_portnet_marts(self.database_url)
         self.assertEqual(built.returncode, 0, built.stdout + built.stderr)
-        latest, quality, reasons, stored_observations = read_portnet_marts(
-            self.database_url
-        )
+        (
+            latest,
+            quality,
+            reasons,
+            stored_observations,
+            collision_versions,
+        ) = read_portnet_marts(self.database_url)
         self.assertEqual(latest, EXPECTED_LATEST)
         self.assertEqual(quality, EXPECTED_QUALITY)
         self.assertEqual(
             reasons, [("INVALID_PORTNET_CALL", 10), ("INVALID_PORTNET_ETA", 10)]
         )
         self.assertEqual(stored_observations, 6)
+        self.assertEqual(len(collision_versions), 2)
+        self.assertNotEqual(collision_versions[0], collision_versions[1])
 
 
 if __name__ == "__main__":

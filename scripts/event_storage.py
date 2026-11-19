@@ -50,7 +50,6 @@ def insert_quality_issue(
             "%(port_call_id)s, %(received_at)s, %(raw_payload)s, %(details)s "
             "WHERE NOT EXISTS (SELECT 1 FROM {} WHERE issue_code = %(issue_code)s "
             "AND event_id IS NOT DISTINCT FROM %(event_id)s "
-            "AND received_at_utc IS NOT DISTINCT FROM %(received_at)s "
             "AND details = %(details)s)"
         ).format(sql.Identifier(table_name), columns, sql.Identifier(table_name))
     else:

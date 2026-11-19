@@ -139,8 +139,14 @@ class PortnetPostgresTests(unittest.TestCase):
         first = ingest_portnet.store_observations([event], [], self.database_url)
         replay = {**event, "received_at_utc": "2026-11-10T08:05:00.000000Z"}
         second = ingest_portnet.store_observations([replay], [], self.database_url)
+        third = ingest_portnet.store_observations(
+            [{**event, "received_at_utc": "2026-11-10T08:06:00.000000Z"}],
+            [],
+            self.database_url,
+        )
         self.assertEqual(first, (1, 0, 0, 1))
         self.assertEqual(second, (1, 1, 0, 0))
+        self.assertEqual(third, (1, 1, 0, 0))
         with psycopg.connect(self.database_url) as connection:
             counts = connection.execute(
                 "SELECT (SELECT count(*) FROM portnet_eta_observation), "
@@ -162,11 +168,17 @@ class PortnetPostgresTests(unittest.TestCase):
         }
         events, rejected, _ = ingest_portnet.normalize_data([call], RECEIVED_AT)
         ingest_portnet.store_observations(events, rejected, self.database_url)
+        replay = [
+            {**item, "received_at_utc": "2026-11-10T08:06:00.000000Z"}
+            for item in rejected
+        ]
+        ingest_portnet.store_observations([], replay, self.database_url)
         with psycopg.connect(self.database_url) as connection:
-            reason = connection.execute(
-                "SELECT reason_code FROM portnet_eta_rejected_event"
-            ).fetchone()[0]
-        self.assertEqual(reason, "INVALID_PORTNET_ETA")
+            reasons = connection.execute(
+                "SELECT reason_code, count(*) "
+                "FROM portnet_eta_rejected_event GROUP BY reason_code"
+            ).fetchall()
+        self.assertEqual(reasons, [("INVALID_PORTNET_ETA", 1)])
 
     def test_changed_payload_with_existing_event_id_is_collision(self):
         event = self._portnet_event()

@@ -7,10 +7,10 @@ with expected (port_call_id, port_area_code, event_id, eta_utc) as (
             timestamptz '2026-11-01T15:00:00Z'
         ),
         (
-            'portnet:dbt-ci-collision',
-            'KATA',
-            'portnet:dbt-ci-collision-good',
-            timestamptz '2026-11-01T14:30:00Z'
+            'portnet:dbt-ci-late',
+            'VUOS',
+            'portnet:dbt-ci-late-new',
+            timestamptz '2026-11-01T16:00:00Z'
         )
 ),
 actual as (
@@ -18,6 +18,7 @@ actual as (
     from {{ ref('mart_portnet_latest_eta') }}
     where port_call_id in (
         'portnet:dbt-ci-latest',
+        'portnet:dbt-ci-late',
         'portnet:dbt-ci-collision'
     )
 ),

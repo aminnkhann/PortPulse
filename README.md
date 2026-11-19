@@ -63,5 +63,6 @@ ruff format --check .
 - [Metabase dashboards](docs/metabase.md)
 - [Synthetic ETA demo](docs/synthetic_eta.md)
 - [CDC guide and catch-up procedure](docs/streaming_cdc.md)
+- [Engineering baseline assessment](docs/engineering_readiness_assessment.md)
 - [Final clean-clone acceptance checklist](docs/final_acceptance_checklist.md)
 - [Presentation query (result awaiting verification)](docs/presentation_finding.md)

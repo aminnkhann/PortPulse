@@ -12,6 +12,11 @@ class DashboardDefinitionsTests(unittest.TestCase):
         cdc = DASHBOARDS["PortPulse — Kafka CDC Demo (SIMULATED DATA)"]
 
         self.assertIn("Captured ETA Observations — Daily Trend", real)
+        self.assertIn("Portnet identity collision versions", real)
+        self.assertIn("Latest recorded Portnet collection (UTC)", real)
+        self.assertIn(
+            "current_timestamp", real["Latest recorded Portnet collection (UTC)"][1]
+        )
         self.assertIn("Synthetic ETA revision direction", synthetic)
         self.assertIn("CDC changes by operation (SIMULATED)", cdc)
 

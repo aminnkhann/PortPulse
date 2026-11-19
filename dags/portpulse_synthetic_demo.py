@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import os
 import subprocess
 import sys
 import tempfile
@@ -37,7 +38,8 @@ def validate_run_config(conf: object) -> tuple[int, int]:
 
 def input_path_for_run(run_id: str) -> Path:
     run_key = hashlib.sha256(run_id.encode("utf-8")).hexdigest()
-    return Path(tempfile.gettempdir()) / "portpulse_synthetic_demo" / f"{run_key}.jsonl"
+    airflow_home = Path(os.environ.get("AIRFLOW_HOME", tempfile.gettempdir()))
+    return airflow_home / "portpulse_synthetic_demo" / f"{run_key}.jsonl"
 
 
 def generate_synthetic_events() -> None:

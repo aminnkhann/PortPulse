@@ -128,10 +128,12 @@ def main():
             PortCallEvent.model_validate(event)
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(
+    temporary_output = args.output.with_suffix(args.output.suffix + ".tmp")
+    temporary_output.write_text(
         "".join(json.dumps(event, separators=(",", ":")) + "\n" for event in events),
         encoding="utf-8",
     )
+    temporary_output.replace(args.output)
     print(f"Wrote {summary['event_occurrences']} event occurrences to {args.output}")
     print(json.dumps(summary, indent=2))
 

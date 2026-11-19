@@ -26,19 +26,20 @@ DASHBOARDS = {
             "FROM analytics.mart_portnet_latest_eta",
             (0, 5, 5, 4),
         ),
-        "Rejected observations": (
+        "Unique rejected records": (
             "scalar",
-            "SELECT rejected_observations FROM analytics.mart_pipeline_quality",
+            "SELECT unique_rejected_records FROM analytics.mart_pipeline_quality",
             (0, 10, 5, 4),
         ),
-        "Duplicate issues": (
+        "Unique duplicate-delivery problems": (
             "scalar",
-            "SELECT duplicate_issue_rows FROM analytics.mart_pipeline_quality",
+            "SELECT unique_duplicate_delivery_problems "
+            "FROM analytics.mart_pipeline_quality",
             (0, 15, 5, 4),
         ),
-        "Collision issues": (
+        "Identity collision groups": (
             "scalar",
-            "SELECT collision_issue_rows FROM analytics.mart_pipeline_quality",
+            "SELECT identity_collision_groups FROM analytics.mart_pipeline_quality",
             (0, 20, 4, 4),
         ),
         "Captured ETA Observations — Daily Trend": (
@@ -95,12 +96,38 @@ DASHBOARDS = {
             LIMIT 50""",
             (13, 10, 14, 9),
         ),
-        "Mart refreshed at (UTC)": (
+        "dbt mart refreshed at (UTC)": (
             "table",
             """SELECT
                 refreshed_at_utc
             FROM analytics.mart_pipeline_quality""",
             (22, 0, 10, 3),
+        ),
+        "Latest recorded Portnet collection (UTC)": (
+            "table",
+            """SELECT
+                latest_recorded_collection_utc,
+                current_timestamp AT TIME ZONE 'UTC' AS measured_at_utc,
+                round(extract(epoch FROM (
+                    current_timestamp - latest_recorded_collection_utc
+                )) / 60, 1) AS collection_age_minutes
+            FROM analytics.mart_portnet_latest_collection""",
+            (22, 10, 12, 3),
+        ),
+        "Portnet identity collision versions": (
+            "table",
+            """SELECT
+                port_call_id,
+                port_area_code,
+                event_id,
+                eta_utc,
+                provider_updated_at_utc,
+                collected_at_utc,
+                canonical_payload_sha256
+            FROM analytics.mart_portnet_id_collisions
+            ORDER BY port_call_id, port_area_code, event_id,
+                     canonical_payload_sha256""",
+            (25, 0, 24, 9),
         ),
     },
     "PortPulse — Synthetic ETA Analytics (SIMULATED DATA)": {

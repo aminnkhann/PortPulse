@@ -7,7 +7,15 @@
 ```sh
 git clone https://github.com/aminnkhann/portpulse.git portpulse-acceptance
 cd portpulse-acceptance
-git switch fix/final-engineering-hardening
+
+# Before PR #36 is merged, check out its proposed branch:
+git fetch origin pull/36/head:pr-36
+git switch --detach pr-36
+
+# If PR #36 has already been merged, use the updated main branch instead:
+# git switch main
+# git pull --ff-only origin main
+
 export COMPOSE_PROJECT_NAME=portpulse-acceptance
 export POSTGRES_PORT=15432
 export AIRFLOW_PORT=18080
@@ -55,9 +63,43 @@ Expected: the two cross-source counts are zero. `mart_portnet_latest_eta` has no
 
 Open `http://localhost:13000` and check **Portnet Overview** (real captured data only), **Synthetic ETA Analytics** (fictional events only), and **Kafka CDC Demo** (fictional CDC only). Check that the Portnet dashboard shows both latest recorded collection age and dbt refresh time with distinct labels, and that collision versions can be inspected. The live API may return no eligible observations, so do not require a fixed real-data count.
 
-## 6. Run the CDC micro-batch and check backlog
+## 6. Run a fresh five-change CDC scenario
 
-In Airflow, unpause and manually trigger `portpulse_streaming_cdc`. Its `consume_cdc_batch` task is bounded to 100 records, followed by the dbt model task. Confirm that task success creates CDC history and the latest-state mart changes. This is a manually triggered micro-batch, not a continuously running consumer.
+Check that Kafka Connect and the Debezium connector are running before creating changes:
+
+```sh
+curl -fsS http://localhost:18083/connectors/portpulse-postgres-cdc/status
+```
+
+Expected: the connector and its task report `RUNNING`. Generate a unique scenario ID for this acceptance run; the simulator commits five fictional changes and refuses to reuse an existing ID:
+
+```sh
+SCENARIO_ID="acceptance-$(python -c 'import uuid; print(uuid.uuid4().hex[:12])')"
+docker compose exec -T airflow python scripts/simulate_port_traffic.py \
+  --scenario-id "$SCENARIO_ID" --delay-seconds 0
+```
+
+In Airflow, unpause and manually trigger `portpulse_streaming_cdc`. Wait for both `consume_cdc_batch` and `build_streaming_dbt_models` to succeed. The consumer is a bounded, manually triggered micro-batch, not a continuously running consumer.
+
+Check the new scenario's operation history and final mart state:
+
+```sh
+docker compose exec -T db psql -U portpulse -d portpulse -c \
+  "SELECT cdc_operation, count(*) FROM stream_demo.port_eta_cdc_event WHERE scenario_id = '$SCENARIO_ID' GROUP BY cdc_operation ORDER BY cdc_operation;"
+docker compose exec -T db psql -U portpulse -d portpulse -c \
+  "SELECT port_call_id, eta_utc FROM analytics.mart_stream_latest_eta WHERE scenario_id = '$SCENARIO_ID' ORDER BY port_call_id;"
+```
+
+Expected history: two creates (`c`), two updates (`u`), and one delete (`d`). Expected latest state: only `SIM-001`, with ETA `2026-11-13 14:50:00+00`; deleted `SIM-002` is absent. Confirm this directly if needed:
+
+```sh
+docker compose exec -T db psql -U portpulse -d portpulse -c \
+  "SELECT count(*) AS deleted_call_in_latest_state FROM analytics.mart_stream_latest_eta WHERE scenario_id = '$SCENARIO_ID' AND port_call_id = 'SIM-002';"
+```
+
+The result should be zero. Do not clear Kafka history or database rows to make the counts match; use the new scenario ID to isolate this run.
+
+The task is bounded to 100 messages per DAG run. Inspect pending work and repeat the DAG only if `LAG` remains above zero:
 
 Inspect the configured consumer group's pending work:
 

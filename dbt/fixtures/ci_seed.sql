@@ -104,9 +104,10 @@ INSERT INTO portnet_eta_observation (
     ingested_at_utc, eta_utc, canonical_payload_sha256, raw_payload
 )
 VALUES
-    ('portnet:dbt-ci-late-old', 'portnet:dbt-ci-late', 'VUOS',
-     '2026-11-01T09:00:00Z', '2026-11-01T10:30:00Z', '2026-11-01T10:31:00Z',
-     '2026-11-01T18:00:00Z', repeat('5', 64), '{}'::jsonb),
+    -- Newer provider update is stored first; the older one arrives later.
     ('portnet:dbt-ci-late-new', 'portnet:dbt-ci-late', 'VUOS',
      '2026-11-01T10:00:00Z', '2026-11-01T10:02:00Z', '2026-11-01T10:03:00Z',
-     '2026-11-01T16:00:00Z', repeat('6', 64), '{}'::jsonb);
+     '2026-11-01T16:00:00Z', repeat('6', 64), '{}'::jsonb),
+    ('portnet:dbt-ci-late-old', 'portnet:dbt-ci-late', 'VUOS',
+     '2026-11-01T09:00:00Z', '2026-11-01T10:30:00Z', '2026-11-01T10:31:00Z',
+     '2026-11-01T18:00:00Z', repeat('5', 64), '{}'::jsonb);

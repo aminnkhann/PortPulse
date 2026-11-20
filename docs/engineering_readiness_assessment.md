@@ -1,10 +1,12 @@
 # PortPulse Engineering Readiness Assessment
 
-**Date:** 2026-11-19 (Europe/Berlin)  
-**Reviewed repository:** `aminnkhann/portpulse`, `main` at `143aaf6e472b864dc53860941589af3df31eba52`  
-**Audience:** portfolio reviewers, internship interviewers, instructors, and future contributors  
-**Classification:** local, reproducible-by-design educational platform; **not production-ready**  
+**Date:** 2026-11-19 (Europe/Berlin)
+**Baseline reviewed:** `aminnkhann/portpulse`, `main` at `143aaf6e472b864dc53860941589af3df31eba52`
+**Audience:** portfolio reviewers, internship interviewers, instructors, and future contributors
+**Classification:** local, reproducible-by-design educational platform; **not production-ready**
 **Review method:** inspect versioned source, configuration, tests, workflows and documentation; compare against project acceptance goals and relevant official Airflow, dbt, and Digitraffic guidance. Prior local runtime output is identified separately. No new clean-clone execution was performed during this review.
+
+**Update:** This began as a baseline assessment of `143aaf6`. PR [#36](https://github.com/aminnkhann/portpulse/pull/36) addresses the verified ETA ordering, repeated quality counting, HTTP retries, run-date stability, handoff, freshness display, CDC ordering guard, smoke workflow, and README findings below. The PR's local checks and remaining unrun checks are reported in the PR; baseline descriptions are historical where superseded.
 
 ## Executive conclusion
 
@@ -18,23 +20,23 @@ The highest-priority product gap is **API interchangeability**. Current provider
 
 | Area | Evidence in repo / previous local run | Rating | Qualification |
 |---|---|---|---|
-| GitHub `main` | At SHA `143aaf6e...`, latest default `tests.yml` run succeeded | **Pass** | CI does not prove clean Compose launch |
+| GitHub `main` | Baseline SHA `143aaf6e...` had a successful default `tests.yml` run | **Historical evidence** | PR #36 checks are pending; CI does not prove clean Compose launch |
 | One-trigger Airflow | `dags/portpulse_full_pipeline.py`; 4 tasks, parallel real/synthetic branches, dbt after both | **Pass, demonstrated locally** | Manual trigger; no live upstream guarantee |
 | Docker startup | `docker-compose.yml` with DB/Kafka/Kafka Connect/Metabase healthchecks, one-shot setup jobs | **Pass on existing stack** | Fresh checkout acceptance not executed yet |
 | Portnet ingestion | `scripts/ingest_portnet.py`, Pydantic, PostgreSQL inserts, rejections, quality issues | **Pass, source-specific** | Live counts change; no generic adapter |
 | Synthetic ETA | `scripts/generate_synthetic_eta.py` and `scripts/ingest_synthetic_eta.py`; seed 42 test fixtures | **Pass** | Repeated scenario adds no accepted duplicate rows |
-| dbt | 3 staging and 7 mart SQL models; 75/75 local `dbt build` outcomes | **Pass** | No explicit source freshness SLA |
+| dbt | Baseline had 3 staging and 7 mart SQL models; PR #36 adds 2 marts and assertions | **Changed** | Local `dbt parse` passed; dbt build and a formal freshness SLA remain unverified |
 | Kafka CDC | Publication + Debezium + topic setup + Airflow consumer + history and mart | **Pass on existing stack** | Optional demo; no evidence of automated fresh-clone CDC smoke after #34 |
 | Metabase | `scripts/setup_metabase.py` initializes 3 dashboards, analytics reader | **Pass on existing stack** | Distinguish accessible UI from fully automated dashboard assertions |
-| CI integration | Python/Pydantic/Postgres/dbt tests on push/PR; smoke workflow files present | **Partial** | `bi-smoke.yml` and `cdc-smoke.yml` are `workflow_dispatch` only |
+| CI integration | Default CI covers Python/PostgreSQL/dbt; PR #36 removes the obsolete CDC Compose profile | **In progress** | PR checks are pending; the CDC smoke workflow remains manual `workflow_dispatch` |
 | API portability | Fixed V1 URL, `locode`/`date` query, `portCalls`/`etaTimestamp` fields, hardcoded `source_id` | **Not met** | Merely changing API URL does not satisfy original goal |
 | Clean-clone portability | No independent fresh-volume acceptance evidence recorded | **Not verified** | Required before "works for any clone" claim |
 | Production operations | Single Kafka node; Airflow SQLite metadata; local-only passwords | **Not targeted** | Do not present as production-ready |
 | Portfolio visibility | GitHub repository is currently private | **Partial** | External reviewers need access or a sanitized public showcase |
 
-**Repository state as of audit:** PRs #32 (one-run DAG), #33 (automatic topic/manual CDC), #34 (topic CLI argv fix) are merged. PR #31 (collection lookback/backup) is **open and draft**. Changes from #31 are not part of `main`; no seven-day backfill exists in the *separate* `portpulse_daily_pipeline` DAG. The full DAG already has its own seven-day recheck logic. Do not merge #31 merely to satisfy the one-run workflow.
+**Repository state at baseline:** PRs #32–#34 were merged. The seven-day date recheck belongs to the full DAG; each daily ingestion can commit before a later day fails. PR #36 adds a run-date anchor and explicit partial-commit guidance.
 
-**Review boundary:** The DCI course repository is not accessible through this GitHub integration, so matching file contents, CI and PR status there could not be independently audited.
+**Review boundary:** This task intentionally changes only the private `aminnkhann/portpulse` repository; the DCI course repository is out of scope.
 
 ## 2. Acceptance criteria for the next clean-clone test
 
@@ -110,24 +112,23 @@ Gaps and actions:
 
 - Provider-level parsing uses a mix of hand-coded checks and Pydantic. Document that **not every raw API record is validated by one Pydantic model**; only eligible normalized ETA observations use the Pydantic models.
 - CDC messages are explicitly validated in `scripts/streaming_cdc.py` but **do not use Pydantic**; this is fine for a small demonstration if stated correctly.
-- Existing `mart_pipeline_quality` reports cumulative counts. Real repeated polling can add `EXACT_DUPLICATE` quality rows without adding accepted observations, making the headline quality metric grow even when nothing bad changes. Label this **repeat-poll attempts** or implement one clean poll ledger later.
-- No persisted per-poll attempt ledger (`request date`, `fetched`, `eligible`, `inserted`, `rejected`, `duration`, `status`). Add a small `ingestion_run` table **only after clean clone + API adapter** if a run-level dashboard/operations report is required.
-- Add dbt **source freshness** checks and distinguish "API returned zero eligible rows" from "API request failed". A source freshness check is separate from `dbt build`.
+- PR #36 changes the real quality mart to count unique semantic rejection payloads, duplicate event/payload identities, and collision event IDs. Repeat polling still leaves legacy issue rows available for audit; no schema migration is needed.
+- There is still no persisted per-poll attempt ledger (`request date`, `fetched`, `eligible`, `inserted`, `rejected`, `duration`, `status`). The Portnet dashboard shows the latest recorded accepted/rejected payload collection and its age separately from dbt refresh. Empty successful polls are not recorded, and this is not a formal source freshness SLA.
 - Put representative contract field semantics and source mappings in the data dictionary.
 
 ### 3.3 Orchestration — **correct primary graph, scheduling semantics need attention**
 
 **Full DAG:** independent `fetch_real_portnet` and synthetic generation, synthetic validation/ingestion after generation, and `dbt build` only after both ingestion paths succeed. That is understandable and suitable for a portfolio demonstration.
 
-**Potential issues:**
+**Verified behavior and remaining limits:**
 
-- `fetch_real_portnet` defaults to `datetime.now(timezone.utc).date()`. Retrying the **same DAG run across a UTC date boundary can change the requested date range**. Airflow guidance favors run-bound deterministic/partitioned parameters. Capture a fixed date via DAG-run metadata or validated config.
-- The real path makes seven synchronous HTTP requests. `fetch_json` has a 20-second timeout but no explicit exponential retry/backoff for HTTP 429/5xx, and a later request failure can leave earlier date inserts committed. That's not corrupt data, but the run's partial ingestion should be visible and retry-safe.
-- Synthetic file handoff uses a run-ID-dependent **local temporary file**. Safe in the observed single-container executor, but not a shared location if executor topology changes.
+- The full DAG now defaults the window to the DAG run's UTC logical date, with a validated `run_date` override.
+- Portnet requests use bounded retries for 429/5xx and network failures. Daily requests remain sequential; if a later day fails, earlier daily transactions may already have committed. Replays are idempotent.
+- Synthetic handoff now uses a run-ID-specific path under the shared `AIRFLOW_HOME` volume and atomically replaces the completed JSONL file. The documented single Compose Airflow service shares that volume.
 - The optional daily and synthetic DAGs coexist with the full DAG. Clearly mark the full DAG as the recommended demonstration. Avoid overlapping DBT builds on the same marts when running multiple DAGs simultaneously.
 - The Kafka DAG is manual-only (`schedule=None`); an unpaused CDC DAG alone will **not** generate simulator changes or populate its dashboard.
 
-**Recommendation:** Do not introduce Celery/Kubernetes just for an internship portfolio. Add a fixed run-date test, bounded retry behavior, clear error/reporting, and optional guard against concurrent dbt builds.
+**Recommendation:** Do not introduce Celery/Kubernetes just for an internship portfolio. The run-date, retry, and handoff fixes are covered by focused tests; do not claim concurrent task execution was observed.
 
 ### 3.4 Kafka and CDC — **working demo; reason about limits**
 
@@ -138,7 +139,7 @@ Strengths: real PostgreSQL WAL change capture (not a mocked Kafka producer); Deb
 - Single Kafka broker with replication factor 1 is a **development demo**, not high availability.
 - CDC operator consumes up to **100 messages per manual DAG run**; backlog may require repeated runs. Show backlog explicitly before calling a dashboard "caught up".
 - Consumer commits offsets after successful database batch; PostgreSQL storage can safely deduplicate retries by topic/partition/offset. This gives **at-least-once processing with idempotent storage**, not exactly-once delivery.
-- `mart_stream_latest_eta.sql` ranks by partition then offset. Kafka offset order is comparable **within a partition only**. The same key normally stays on one partition, but if the topic partition count or key-mapping changes, a database query using cross-partition sort order can give incorrect latest state. Document the invariant; strengthen ordering using Debezium source LSN or source sequence metadata before changing partitioning.
+- `mart_stream_latest_eta.sql` ranks first by the existing Debezium row's source update timestamp; partition and offset only break ties. Kafka offsets are comparable **within a partition only**. A dbt data test fails if one source key appears in multiple partitions. Changing topic partition count or key mapping still requires review; the demo does not persist Debezium source LSN.
 - Connector RUNNING is a readiness signal, not proof that every emitted message reached the mart. The 5-event scenario is the evidence.
 
 **Target:** Fresh setup + deterministic 5-event smoke + correct mart. Avoid unrelated Kafka infrastructure expansion.
@@ -150,7 +151,7 @@ Strengths: explicit SQL migrations, normalized source tables, dedicated syntheti
 Improvements:
 
 - Treat **schema migrations** as versioned operations. A fresh volume initializes 001–010, but modifying an existing mounted database requires documented forward migrations; file edits in `migrations/` do not auto-apply to pre-existing volumes.
-- **dbt source freshness** and business-level assertions would improve trust: ETA timestamp is valid UTC, source event time/ETA order follows assumptions, no invalid synthetic events in marts, excluded collisions.
+- PR #36 adds dbt assertions for late-arriving Portnet ETAs, collision visibility/exclusion, unique semantic quality counts, latest recorded collection, and CDC key partitioning. The latest collection age is not a provider SLA and does not observe empty polls.
 - Preserve distinction between **ETA revision** and **actual arrival delay**. Current source data do not justify real arrival-delay claims.
 - Add one data-run lineage reference through the pipeline only if needed for traceability; avoid redundant metadata frameworks.
 
@@ -160,8 +161,8 @@ Strengths: three purpose-separated dashboards; real versus fictional data labels
 
 Improvements:
 
-- Show **last successful full-pipeline run**, **last source collection date**, and a warning when source data are stale. A dashboard can be reachable but show old data.
-- Label quality counts by semantics (duplicate attempts versus distinct rejected records). Add "ETA updates ≠ arrival delays" wording near synthetic charts.
+- The Portnet dashboard now separates latest recorded collection age from dbt mart refresh and labels unique rejected records, duplicate-delivery problems, and identity collision groups. It does not show last successful full-DAG run or infer freshness from empty polls.
+- ETA revision charts still describe estimate changes, not actual arrival delays; no actual arrival timestamp is persisted for prediction-accuracy analysis.
 - Improve table widths and technical column labels, ideally demonstrate in a clean browser session with screenshots.
 - CDC demo should explain its expected empty state until a scenario and Airflow CDC trigger occur; do not display an "always healthy" statement based only on zero rows.
 - Version-control a concise dashboard acceptance check with expected card names and sources.
@@ -173,7 +174,7 @@ Improvements:
 **Important gaps:**
 
 - `.github/workflows/bi-smoke.yml` and `.github/workflows/cdc-smoke.yml` are **manual dispatch**; they are not run on every PR or default-branch commit. Fresh Compose success is therefore not part of normal merge gating.
-- `cdc-smoke.yml` includes an obsolete `docker compose --profile streaming up --build -d` command, although the current Compose file has no `streaming` profiles. This is unnecessary and should be simplified. Its host-side connector registration relies on `localhost:8083`, which **is published by the current Compose file**; that alone is not a confirmed failure. Review and rerun the workflow **before claiming it validates the current stack**.
+- PR #36 removes the obsolete `--profile streaming` argument from `cdc-smoke.yml`. The workflow is still manual and has not been executed for this PR; do not claim it passed.
 - Add a single **fresh-stack acceptance job** that performs the main DAG and CDC end-to-end with bounded timeouts, and checks counts and dashboard readiness. This can initially be a manual release gate rather than every-commit CI to control resources.
 - Add a test of `docker compose config` / actual one-shot topic creation so CLI-argument errors cannot escape as in #33.
 - Pin dependencies deliberately; current Python requirement ranges for some libraries mean installs can change over time. The intended level of reproducibility is deterministic pipeline logic, not bit-identical package resolutions unless lock/constraint files are used.
@@ -190,21 +191,21 @@ Improvements:
 
 ## 4. Prioritized improvement backlog
 
-| Priority | Work item | Expected artifact | Acceptance / done criterion | Estimated complexity |
+| Priority | Work item | Expected artifact | Acceptance / done criterion | Current status |
 |---|---|---|---|---|
-| **P0** | Run isolated clean-clone acceptance | Recorded commands, CI logs, metrics, dashboard screenshots | A1–A12 all pass; no manual Kafka/migration patches | Medium |
-| **P0** | Stabilize user-visible README and architecture | README + accurate diagrams + data semantics | Clone/run/verify steps match actual code; no false readiness claims | Small |
-| **P0** | Review and update obsolete CDC smoke CI workflow | Tested GitHub workflow | Dispatch succeeds from current `main`; no deprecated compose profile | Medium |
-| **P1** | Implement explicit API provider adapter (V1 + second fixture/V2) | Adapter module, config, Pydantic model/tests | API swap needs config only; downstream DB/dbt untouched | Medium |
-| **P1** | Prepare for Digitraffic V1 sunset | V2 adapter migration plan | Date-driven transition before 2027-01-01 new-data cutoff | Medium |
-| **P1** | Deterministic Airflow run-date and HTTP retry design | Small DAG/fetch changes + unit tests | Same run fetches same dates on retry; bounded 429/5xx handling | Small/Medium |
-| **P1** | Add one clean-stack test as release gate | CI integration job or reproducible test script | Creates own isolated project and passes full smoke | Medium |
-| **P2** | Add ingestion-run ledger and source freshness | Run table + dbt freshness config | Distinguish empty/upstream failure/stale data with no duplicate noise | Medium |
-| **P2** | Clarify CDC ordering/offset assumptions | Explicit documented key/partition invariant and tests | Correct latest mart across replay / partition changes | Medium |
-| **P2** | Polish Metabase and portfolio presentation | Updated dashboards/screenshots, README evidence | Reviewer can identify real/simulated data and trace ETA lineage | Small |
-| **Later** | Production architecture | External Airflow DB, secrets manager, HA Kafka, observability stack | Only if deployment beyond local portfolio becomes a goal | Large — out of scope |
+| **P0** | Run isolated clean-clone acceptance | Recorded commands, service/task states, SQL assertions | A1–A12 pass without deleting existing data | **NOT RUN; checklist added** |
+| **P0** | Update README, architecture, and acceptance steps | Concise README, current diagrams, acceptance checklist | Steps match current code and no false readiness claims | **Addressed in PR #36** |
+| **P0** | Correct CDC smoke workflow | Current Compose invocation | Workflow dispatch succeeds against the current stack | **Profile fixed; workflow not run** |
+| **P1** | Implement explicit API provider adapter (V1 + second fixture/V2) | Adapter module, config, Pydantic model/tests | API swap needs config only; downstream DB/dbt untouched | **Future work; no unverified V2 adapter added** |
+| **P1** | Prepare for Digitraffic V1 sunset | Verified V2 transition plan | Date-driven transition before the provider cutoff | **Future work** |
+| **P1** | Deterministic Airflow run-date and HTTP retries | DAG/fetch changes + regression tests | Same run uses same UTC dates; bounded transient retries | **Addressed; local unit checks pass** |
+| **P1** | Full-stack acceptance gate | Manual reproducible procedure | Runs on an isolated project and records actual outcomes | **Procedure added; execution reserved for owner** |
+| **P2** | Persist poll-attempt ledger/formal freshness SLA | Run table or source SLA | Observe successful empty polls and provider availability | **Not implemented; current collection age is record-based** |
+| **P2** | Clarify CDC ordering and partition assumptions | Source-time ordering, guard test, operations guide | Same key remains in one partition; lag can be checked | **Addressed in PR #36; DB/CDC CI checks pending** |
+| **P2** | Evidence-based presentation finding | Read-only query and verified result | Report only after reproducing on the owner's database | **Query added; result awaiting verification** |
+| **Later** | Production architecture | External Airflow DB, secrets manager, HA Kafka, observability stack | Only if deployment beyond local portfolio becomes a goal | **Out of scope** |
 
-**Execution order:** Clean clone first → fix the **first actual failure** → fix CDC CI gate → API adapter + V2 preparation → freshness/observability → presentation. Avoid adding infrastructure or dashboards before proving the basic demo can be reproduced.
+**Execution order:** Review PR #36 → run the owner-controlled isolated acceptance checklist → fix any observed failure → plan V2 adapter work before the provider cutoff. Do not treat the manual CDC workflow as passed until it is actually dispatched and completed.
 
 ## 5. Definition of done for the user's original project goal
 
@@ -216,13 +217,14 @@ PortPulse can be called **complete as a portfolio-grade local demonstration** wh
 - The real API pipeline correctly parses, validates and stores any eligible current data; empty API results are reported honestly, not treated as a promise of a fixed count.
 - Metabase creates all three distinct dashboards and accurately labels real versus simulated data.
 - A new CDC scenario produces Kafka create/update/delete events, an Airflow CDC run succeeds, and the latest-state dbt mart excludes the deleted call.
-- Both source and downstream data contracts are tested; swapping to a second ETA provider requires only a provider adapter/configuration and no mart rewrites.
-- The README, architecture, dictionary and demo procedure remain current; CI explicitly covers the critical startup path.
+- The current V1 adapter, event contracts, late-arrival/collision rules, and separate data paths are documented. Provider interchangeability and a V2 adapter remain future work and are not claimed.
+- ETA prediction accuracy is not established because actual arrivals are not persisted for analysis.
+- The README, architecture, dictionary, and demo procedure match the implementation; the owner's manual isolated acceptance verifies fresh-stack startup because default CI does not run the full Compose acceptance path.
 - All claims are framed as a **local development/learning project** with documented limitations.
 
 ## 6. Follow-through and evidence hygiene
 
-Keep full source-of-truth code in the two mirrored repositories. Implementation PRs should have matching changes and successful checks before merging both per `AGENTS.md`. A **documentation-only** report/README update can stay in the personal repository, but the course README should be kept consistent when later implementing adapter or runtime changes.
+PR #36 intentionally targets only the private personal repository, as requested; it does not modify the DCI course mirror.
 
 A successful GitHub workflow verifies the code covered by that workflow only. A green `docker compose ps` verifies service startup only. A green Airflow run verifies the orchestrated tasks in that environment only. Separate these three claims in interviews and documentation.
 

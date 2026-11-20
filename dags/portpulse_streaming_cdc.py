@@ -24,6 +24,7 @@ def build_streaming_dbt_models() -> None:
             "--select",
             "stg_stream_eta_changes",
             "mart_stream_latest_eta",
+            "assert_stream_key_single_partition",
         ],
         cwd=PROJECT_ROOT / "dbt",
         check=True,

@@ -50,6 +50,23 @@ class FullPipelineTests(unittest.TestCase):
                 "2026-11-17",
             ],
         )
+
+    @patch("dags.portpulse_full_pipeline.subprocess.run")
+    @patch("dags.portpulse_full_pipeline.get_current_context")
+    def test_default_window_uses_utc_dag_run_date_across_midnight(self, context, run):
+        context.return_value = {
+            "dag_run": SimpleNamespace(
+                conf={},
+                logical_date=SimpleNamespace(
+                    in_timezone=lambda zone: SimpleNamespace(
+                        date=lambda: date(2026, 11, 17)
+                    )
+                ),
+            )
+        }
+        fetch_real_portnet()
+        self.assertEqual(run.call_args.args[0][-1], "2026-11-17")
+
         self.assertEqual(
             portnet_dates(
                 {"run_date": "2026-11-17", "lookback_days": 1},
@@ -76,7 +93,12 @@ class FullPipelineTests(unittest.TestCase):
     def test_real_data_fetch_runs_sequentially(self, context, run, sleep):
         context.return_value = {
             "dag_run": SimpleNamespace(
-                conf={"run_date": "2026-11-17", "lookback_days": 2}
+                conf={"lookback_days": 2},
+                logical_date=SimpleNamespace(
+                    in_timezone=lambda zone: SimpleNamespace(
+                        date=lambda: date(2026, 11, 17)
+                    )
+                ),
             )
         }
         fetch_real_portnet()
@@ -93,7 +115,12 @@ class FullPipelineTests(unittest.TestCase):
     def test_real_api_error_fails_task(self, context, run, sleep):
         context.return_value = {
             "dag_run": SimpleNamespace(
-                conf={"run_date": "2026-11-17", "lookback_days": 1}
+                conf={"run_date": "2026-11-17", "lookback_days": 1},
+                logical_date=SimpleNamespace(
+                    in_timezone=lambda zone: SimpleNamespace(
+                        date=lambda: date(2026, 11, 17)
+                    )
+                ),
             )
         }
         run.side_effect = subprocess.CalledProcessError(1, "ingest_portnet")

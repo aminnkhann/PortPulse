@@ -13,17 +13,17 @@ from psycopg.types.json import Jsonb
 
 from scripts.event_model import PortCallEvent
 from scripts.event_storage import (
+    FIXTURE_INGESTION_LOCK,
     existing_hashes,
     insert_quality_issue,
+    lock_ingestion,
     record_payload_hash,
 )
 
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / "fixtures" / "port_call_v1.jsonl"
-DEFAULT_DATABASE_URL = (
-    "postgresql://portpulse:portpulse_local_only@127.0.0.1:5432/portpulse"
-)
+DEFAULT_DATABASE_URL = "postgresql://portpulse:admin@127.0.0.1:5432/portpulse"
 HASH_FIELDS = (
     "event_id",
     "port_call_id",
@@ -197,6 +197,7 @@ def store_fixture(valid, rejected, record_existing_duplicates=False, database_ur
 
     with psycopg.connect(database_url) as connection:
         with connection.cursor() as cursor:
+            lock_ingestion(cursor, FIXTURE_INGESTION_LOCK)
             prior_hashes = defaultdict(set)
             if record_existing_duplicates:
                 event_ids = sorted({event["event_id"] for event, _ in unique_events})

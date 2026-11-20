@@ -6,6 +6,14 @@ from psycopg import sql
 from psycopg.types.json import Jsonb
 
 
+PORTNET_INGESTION_LOCK = "portpulse:portnet-eta-ingestion"
+FIXTURE_INGESTION_LOCK = "portpulse:fixture-ingestion"
+
+
+def lock_ingestion(cursor, lock_name):
+    cursor.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", (lock_name,))
+
+
 def existing_hashes(cursor, table_name, event_ids):
     hashes = defaultdict(set)
     if event_ids:
@@ -50,7 +58,6 @@ def insert_quality_issue(
             "%(port_call_id)s, %(received_at)s, %(raw_payload)s, %(details)s "
             "WHERE NOT EXISTS (SELECT 1 FROM {} WHERE issue_code = %(issue_code)s "
             "AND event_id IS NOT DISTINCT FROM %(event_id)s "
-            "AND received_at_utc IS NOT DISTINCT FROM %(received_at)s "
             "AND details = %(details)s)"
         ).format(sql.Identifier(table_name), columns, sql.Identifier(table_name))
     else:

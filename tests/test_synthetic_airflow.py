@@ -1,6 +1,9 @@
 """Structure and configuration checks for the synthetic ETA Airflow DAG."""
 
 import unittest
+import os
+from pathlib import Path
+from unittest.mock import patch
 
 from dags.portpulse_synthetic_demo import (
     dag,
@@ -50,9 +53,11 @@ class SyntheticAirflowDagTests(unittest.TestCase):
                 validate_run_config(conf)
 
     def test_input_path_is_stable_per_run_and_separate_between_runs(self):
-        first_path = input_path_for_run("manual__first")
-        self.assertEqual(first_path, input_path_for_run("manual__first"))
-        self.assertNotEqual(first_path, input_path_for_run("manual__second"))
+        with patch.dict(os.environ, {"AIRFLOW_HOME": "/shared/airflow"}):
+            first_path = input_path_for_run("manual__first")
+            self.assertEqual(first_path, input_path_for_run("manual__first"))
+            self.assertNotEqual(first_path, input_path_for_run("manual__second"))
+        self.assertEqual(first_path.parents[1], Path("/shared/airflow"))
         self.assertEqual(first_path.parent.name, "portpulse_synthetic_demo")
 
 

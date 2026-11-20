@@ -3,7 +3,7 @@ WITH ranked_events AS (
         *,
         ROW_NUMBER() OVER (
             PARTITION BY scenario_id, port_call_id, port_area_code
-            ORDER BY kafka_partition DESC, kafka_offset DESC
+            ORDER BY source_updated_at_utc DESC, kafka_partition DESC, kafka_offset DESC
         ) AS event_rank
     FROM {{ ref('stg_stream_eta_changes') }}
 )

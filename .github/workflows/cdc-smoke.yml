@@ -13,7 +13,7 @@ jobs:
         with:
           python-version: "3.12"
       - name: Start disposable streaming stack
-        run: docker compose --profile streaming up --build -d
+        run: docker compose up --build -d
       - name: Wait for services
         run: |
           for attempt in $(seq 1 90); do

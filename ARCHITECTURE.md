@@ -18,7 +18,7 @@ flowchart LR
     DAG --> DBT
 ```
 
-The CLI fetches a UTC collection date from the Portnet V1 REST API. Pydantic validates external records at ingestion. Accepted observations, rejected records, and duplicate or ID-collision quality issues are stored in dedicated PostgreSQL tables. Provider event time, API collection time, and database ingestion time are represented separately in UTC.
+The CLI fetches a UTC collection date from the Digitraffic Port Call V1 REST API. Python checks the raw response shape and Pydantic validates normalized marine ETA event models; Pydantic does not validate every incoming message. Accepted observations, rejected records, and duplicate or ID-collision quality issues are stored in dedicated PostgreSQL tables. Provider event time, API collection time, and database ingestion time are represented separately in UTC. The V1 adapter will eventually stop receiving new data; a V2 adapter remains future work.
 
 The dbt project reads the Portnet tables in `public` and builds `analytics.stg_portnet_eta`, `analytics.mart_portnet_latest_eta`, and `analytics.mart_pipeline_quality`. The latest mart selects an eligible observation per port call and area and excludes collided event IDs. dbt tests run as part of `dbt build`.
 
@@ -46,7 +46,7 @@ flowchart LR
     DBT --> MART[(analytics.mart_stream_latest_eta)]
 ```
 
-Kafka carries committed row changes as an ordered event stream; Debezium reads PostgreSQL's logical WAL through `pgoutput` and publishes those changes without a custom producer. Airflow uses the official Kafka consumer operator for bounded, **manual-only** micro-batches, then runs `dbt build` and its model tests. PostgreSQL event storage is idempotent by Kafka topic, partition, and offset, so a task retry after a database commit can safely replay messages. This is at-least-once processing, not end-to-end exactly-once delivery.
+Kafka carries committed row changes as an ordered event stream; Debezium reads PostgreSQL's logical WAL through `pgoutput` and publishes those changes without a custom producer. Airflow uses the official Kafka consumer operator for bounded, **manual-only** micro-batches, then runs `dbt build` and its model tests. PostgreSQL event storage is idempotent by Kafka topic, partition, and offset, so a task retry after a database commit can safely replay messages. This is at-least-once processing, not end-to-end exactly-once delivery. Kafka offsets have ordering meaning only within each partition; the latest-state mart ranks by source update time and guards the same-key partition assumption.
 
 All generated rows and CDC history stay in `stream_demo`; the real Portnet tables and production daily DAG remain separate. Existing three-source synthetic fixtures test reconciliation, while the Portnet API fixtures test ingestion reliability. The traffic simulator is a third test/demo input that creates database INSERT, UPDATE, and DELETE operations for Debezium to capture.
 

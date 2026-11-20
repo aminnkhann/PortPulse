@@ -85,7 +85,9 @@ The project owner supplied a Windows PowerShell transcript, a newer Metabase CDC
 
 The CLI reported that consumer group `portpulse-streaming-cdc` had no **active** members at the time of inspection. This is expected for a manually triggered micro-batch consumer after its work finishes; the recorded consumer offsets and zero lag are the relevant catch-up evidence.
 
-The later **owner-provided Metabase CDC screenshot** visibly showed 10 cumulative CDC events (Create 4, Update 4, Delete 2), two active simulated calls, and two active calls in area `VUOS`. Those dashboard totals are consistent with two completed five-operation scenarios and one surviving call per scenario. They are **cumulative across scenarios**, not the result of the single `acceptance-c319afe50133` run alone and not fixed expectations for another database.
+The later **owner-provided Metabase CDC screenshot**, now committed below, visibly shows 10 cumulative CDC events (Create 4, Update 4, Delete 2), two active simulated calls, and two active calls in area `VUOS`. Those dashboard totals are consistent with two completed five-operation scenarios and one surviving call per scenario. They are **cumulative across scenarios**, not the result of the single `acceptance-c319afe50133` run alone and not fixed expectations for another database.
+
+![Metabase Kafka CDC dashboard captured on Windows with ten cumulative change events and two active simulated calls](images/windows-docker-2026-11-20/windows-cdc-metabase-2026-11-20.png)
 
 ### Reproduction and evidence limits
 
@@ -113,11 +115,11 @@ FROM analytics.mart_stream_latest_eta
 ORDER BY scenario_id, port_call_id;
 ```
 
-**Evidence boundary:** the owner supplied the newer 10-event/two-call CDC Metabase screenshot in the conversation, but that image is **not yet committed to this repository**; [`cdc_demo.png`](images/cdc_demo.png) is an older, different scenario capture and must not be presented as the newer screenshot. The original terminal transcript and connector/lag output also remain in the conversation rather than versioned log files. The existing CDC Airflow screenshot is versioned and directly reviewable. Exact commands, outputs, and run IDs above were transcribed from owner-supplied evidence; this documentation update did not independently rerun the Windows stack or verify a post-merge clean clone of the latest `main`.
+**Evidence boundary:** the newer [ten-event/two-call CDC Metabase screenshot](images/windows-docker-2026-11-20/windows-cdc-metabase-2026-11-20.png) is now committed to this repository, and its Git blob matches the owner's original uploaded PNG. [`cdc_demo.png`](images/cdc_demo.png) remains a different, older scenario capture. The original terminal transcript and connector/lag output remain in the conversation rather than versioned log files. The existing CDC Airflow screenshot is also versioned and directly reviewable. Exact commands, outputs, and run IDs above were transcribed from owner-supplied evidence; this documentation update did not independently rerun the Windows stack or verify a post-merge clean clone of the latest `main`.
 
 
 ## Verification
 
-The six screenshots currently stored under docs/images were visually inspected during the original review. The main Airflow run and the original two Metabase dashboards, along with their PostgreSQL totals, were checked as described above. For CDC, the owner supplied the scenario ID, exact Airflow run ID, operation counts, current-state result, connector status, zero-lag partition results, and screenshots during this conversation. The newer CDC Metabase image and the terminal transcript are not yet versioned in this repository; their observations are recorded accurately above without treating a chat attachment as committed evidence.
+The previously committed screenshots were visually inspected during the original review, and the newly committed CDC Metabase screenshot matches the owner's uploaded PNG exactly. The main Airflow run and the original two Metabase dashboards, along with their PostgreSQL totals, were checked as described above. For CDC, the owner supplied the scenario ID, exact Airflow run ID, operation counts, current-state result, connector status, zero-lag partition results, and screenshots during this conversation. The newer CDC Metabase image is now versioned in this repository; the terminal transcript remains owner-supplied conversation evidence, not a committed log file.
 
 This report documents prior runs; this documentation update does not rerun ingestion or change application behavior. To reproduce the main workflow, follow [Reproduce and Verify the Results](../README.md#reproduce-and-verify-the-results); follow the [CDC guide](streaming_cdc.md) for connector and micro-batch details. The full [final acceptance checklist](final_acceptance_checklist.md) remains NOT RUN because its complete set of repeat-run and acceptance-record checks has not been reported as completed.

@@ -1,6 +1,6 @@
 # Final clean-clone acceptance checklist
 
-**Overall acceptance status: NOT RUN.** The owner has separately verified a Windows Docker installation, the full main pipeline, and a five-change CDC workflow; see [Windows Docker results](windows_docker_results.md) for that evidence. This does not mark every check below as complete: repeat-run and other acceptance-record checks remain unverified. Run this procedure against the latest `main` branch after the documentation PR is merged. It uses an isolated Compose project name and host ports so it does not attach to or remove another PortPulse project's volumes. Do not use `docker compose down -v`.
+**Windows Docker demonstration: VERIFIED for the recorded main pipeline and five-change CDC workflow. Overall final acceptance status: NOT RUN.** See [Windows Docker results](windows_docker_results.md), including its evidence limits. The complete checklist below has not been reported as finished: repeat-run and other acceptance-record checks remain unverified. Run this procedure against the latest `main` branch after the documentation PR is merged. It uses an isolated Compose project name and host ports so it does not attach to or remove another PortPulse project's volumes. Do not use `docker compose down -v`.
 
 ## 1. Clone and configure isolation
 

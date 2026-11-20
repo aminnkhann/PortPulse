@@ -254,4 +254,4 @@ Restart later with docker compose up -d. docker compose down also retains named 
 
 ## Acceptance status
 
-The owner-verified Windows installation and workflows are documented in [Windows Docker results](docs/windows_docker_results.md). The broader isolated [final acceptance checklist](docs/final_acceptance_checklist.md) remains **NOT RUN as a complete checklist**; its remaining repeat-run and acceptance-record steps have not been reported as completed. This is not a claim that the checklist passed.
+**Windows Docker demonstration: VERIFIED for the owner-reported main pipeline and five-change CDC workflow.** See [Windows Docker results](docs/windows_docker_results.md), including its evidence limits. **Full isolated final acceptance checklist: NOT RUN as a complete checklist.** Repeat-run and other acceptance-record steps have not been reported as completed, so the checklist has not passed.

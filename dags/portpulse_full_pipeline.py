@@ -6,7 +6,7 @@ import logging
 import subprocess
 import sys
 import time
-from datetime import date, timedelta
+from datetime import date, timedelta, timezone
 from pathlib import Path
 
 import pendulum
@@ -49,7 +49,7 @@ def portnet_dates(conf: dict, now: date) -> list[str]:
 
 def fetch_real_portnet() -> None:
     run = get_current_context()["dag_run"]
-    run_date = run.logical_date.in_timezone("UTC").date()
+    run_date = run.logical_date.astimezone(timezone.utc).date()
     dates = portnet_dates(run.conf or {}, run_date)
     LOGGER.info("Fetching Portnet dates %s through %s", dates[0], dates[-1])
     for i, day in enumerate(dates):

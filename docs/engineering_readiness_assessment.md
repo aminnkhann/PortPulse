@@ -36,7 +36,7 @@ The highest-priority product gap is **API interchangeability**. Current provider
 
 **Repository state at baseline:** PRs #32–#34 were merged. The seven-day date recheck belongs to the full DAG; each daily ingestion can commit before a later day fails. PR #36 adds a run-date anchor and explicit partial-commit guidance.
 
-**Review boundary:** This task intentionally changes only the private `aminnkhann/portpulse` repository; the DCI course repository is out of scope.
+**Original review boundary:** The baseline assessment targeted `aminnkhann/portpulse`. Current repository maintenance follows `AGENTS.md`: all tracked files, including documentation and CI, must be mirrored to the DCI course repository.
 
 ## 2. Acceptance criteria for the next clean-clone test
 
@@ -224,7 +224,7 @@ PortPulse can be called **complete as a portfolio-grade local demonstration** wh
 
 ## 6. Follow-through and evidence hygiene
 
-PR #36 intentionally targets only the private personal repository, as requested; it does not modify the DCI course mirror.
+The original assessment and its follow-up work were recorded in the personal repository. Current maintenance requires matching changes and linked PRs in both repositories, including documentation-only updates. Compare complete tracked file trees before and after merging, as required by `AGENTS.md`.
 
 A successful GitHub workflow verifies the code covered by that workflow only. A green `docker compose ps` verifies service startup only. A green Airflow run verifies the orchestrated tasks in that environment only. Separate these three claims in interviews and documentation.
 

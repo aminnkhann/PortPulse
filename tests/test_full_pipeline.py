@@ -2,7 +2,7 @@
 
 import subprocess
 import unittest
-from datetime import date
+from datetime import date, datetime
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -51,20 +51,20 @@ class FullPipelineTests(unittest.TestCase):
             ],
         )
 
+    @patch("dags.portpulse_full_pipeline.time.sleep")
     @patch("dags.portpulse_full_pipeline.subprocess.run")
     @patch("dags.portpulse_full_pipeline.get_current_context")
-    def test_default_window_uses_utc_dag_run_date_across_midnight(self, context, run):
+    def test_default_window_uses_utc_dag_run_date_across_midnight(
+        self, context, run, sleep
+    ):
         context.return_value = {
             "dag_run": SimpleNamespace(
                 conf={},
-                logical_date=SimpleNamespace(
-                    in_timezone=lambda zone: SimpleNamespace(
-                        date=lambda: date(2026, 11, 17)
-                    )
-                ),
+                logical_date=datetime.fromisoformat("2026-11-18T00:30:00+02:00"),
             )
         }
         fetch_real_portnet()
+        self.assertEqual(run.call_args_list[0].args[0][-1], "2026-11-11")
         self.assertEqual(run.call_args.args[0][-1], "2026-11-17")
 
         self.assertEqual(
@@ -94,11 +94,7 @@ class FullPipelineTests(unittest.TestCase):
         context.return_value = {
             "dag_run": SimpleNamespace(
                 conf={"lookback_days": 2},
-                logical_date=SimpleNamespace(
-                    in_timezone=lambda zone: SimpleNamespace(
-                        date=lambda: date(2026, 11, 17)
-                    )
-                ),
+                logical_date=datetime.fromisoformat("2026-11-17T12:00:00+00:00"),
             )
         }
         fetch_real_portnet()
@@ -116,11 +112,7 @@ class FullPipelineTests(unittest.TestCase):
         context.return_value = {
             "dag_run": SimpleNamespace(
                 conf={"run_date": "2026-11-17", "lookback_days": 1},
-                logical_date=SimpleNamespace(
-                    in_timezone=lambda zone: SimpleNamespace(
-                        date=lambda: date(2026, 11, 17)
-                    )
-                ),
+                logical_date=datetime.fromisoformat("2026-11-17T12:00:00+00:00"),
             )
         }
         run.side_effect = subprocess.CalledProcessError(1, "ingest_portnet")

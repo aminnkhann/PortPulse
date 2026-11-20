@@ -146,6 +146,7 @@ Do not delete Docker volumes as a troubleshooting step; they contain persistent 
 - [Database operations and migration notes](docs/database.md)
 - [Data dictionary](docs/data_dictionary.md)
 - [Metabase dashboards](docs/metabase.md)
+- [Windows Docker results with Airflow and Metabase screenshots](docs/windows_docker_results.md)
 - [Synthetic ETA demo](docs/synthetic_eta.md)
 - [CDC guide and catch-up procedure](docs/streaming_cdc.md)
 - [Final clean-clone acceptance checklist](docs/final_acceptance_checklist.md)

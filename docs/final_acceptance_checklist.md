@@ -4,6 +4,8 @@
 
 ## 1. Clone and configure isolation
 
+The repositories mirror the same tracked files. Use the personal repository below, or substitute `https://github.com/dci-fbw-dataeng-python-25-a/amin-final-project.git` in the clone command to test the DCI mirror.
+
 ```sh
 git clone https://github.com/aminnkhann/portpulse.git portpulse-acceptance
 cd portpulse-acceptance

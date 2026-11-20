@@ -1,20 +1,14 @@
 # Final clean-clone acceptance checklist
 
-**Acceptance status: NOT RUN.** This procedure is for the project owner after reviewing the feature branch. It uses an isolated Compose project name and host ports so it does not attach to or remove another PortPulse project's volumes. Do not use `docker compose down -v`.
+**Acceptance status: NOT RUN.** Run this procedure against the latest `main` branch after the documentation PR is merged. It uses an isolated Compose project name and host ports so it does not attach to or remove another PortPulse project's volumes. Do not use `docker compose down -v`.
 
 ## 1. Clone and configure isolation
 
 ```sh
 git clone https://github.com/aminnkhann/portpulse.git portpulse-acceptance
 cd portpulse-acceptance
-
-# Before PR #36 is merged, check out its proposed branch:
-git fetch origin pull/36/head:pr-36
-git switch --detach pr-36
-
-# If PR #36 has already been merged, use the updated main branch instead:
-# git switch main
-# git pull --ff-only origin main
+git switch main
+git pull --ff-only origin main
 
 export COMPOSE_PROJECT_NAME=portpulse-acceptance
 export POSTGRES_PORT=15432
@@ -29,16 +23,22 @@ Optionally set local credentials in the shell before starting Compose. These are
 
 ```sh
 docker compose up --build -d
-docker compose ps
+docker compose ps -a
 ```
 
-Expected: `db`, `metabase`, `kafka`, and `kafka-connect` become healthy; `airflow` remains running. `bi-setup`, `cdc-topic-setup`, and `cdc-setup` should exit successfully after their one-time jobs finish. If a service is still starting, inspect `docker compose logs --tail 100 <service>`; do not delete volumes to repair startup.
+Expected: `db`, `metabase`, `kafka`, and `kafka-connect` become healthy; `airflow` remains running. `bi-setup`, `cdc-topic-setup`, and `cdc-setup` should exit successfully after their one-time jobs finish. `kafka-volume-init` also exits successfully. If a service is still starting, inspect `docker compose logs --tail 100 <service>`; do not delete volumes to repair startup.
 
 ## 3. Run the real and synthetic pipeline
 
 Open `http://localhost:18080`, sign in with the local credentials, trigger `portpulse_full_pipeline`, and wait for `fetch_real_portnet`, `generate_synthetic_eta`, `ingest_synthetic_eta`, and `build_analytics` to succeed. The real task processes one UTC day at a time; earlier daily ingestion transactions may commit even if a later day fails. A successful dbt task does not prove source freshness.
 
-The independent synthetic DAG is `portpulse_synthetic_demo`. For exact seed assertions, trigger it with `{"port_calls":1000,"seed":42}` and wait for all three tasks to succeed. The expected deterministic dataset is 1,000 fictional calls, 3,496 accepted ETA observations, 90 rejected events, 142 duplicate-delivery issues, and zero ID collisions. These synthetic records must remain in `synthetic_demo`, not the real Portnet or CDC tables.
+The independent synthetic DAG is `portpulse_synthetic_demo`. It is initially paused, so unpause it before triggering the test:
+
+```sh
+docker compose exec -T airflow airflow dags unpause portpulse_synthetic_demo
+```
+
+For exact seed assertions, trigger it with `{"port_calls":1000,"seed":42}` and wait for all three tasks to succeed. The expected deterministic dataset is 1,000 fictional calls, 3,496 accepted ETA observations, 90 rejected events, 142 duplicate-delivery issues, and zero ID collisions. These synthetic records must remain in `synthetic_demo`, not the real Portnet or CDC tables.
 
 ## 4. Check database assertions
 

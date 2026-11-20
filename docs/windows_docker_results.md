@@ -18,7 +18,7 @@ The three PNGs are unaltered browser screenshots of the live applications, rende
 | Run ID | `manual__2026-11-20T09:23:22.330319+00:00` |
 | Run started / finished | 09:23:23 / 09:28:46 UTC, 20 November 2026 |
 
-The running application includes the [Portnet datetime fix, PR #39](https://github.com/aminnkhann/portpulse/pull/39), commit `d2cb483`. The startup script was normalized to LF before rebuilding Airflow; [PR #38](https://github.com/aminnkhann/portpulse/pull/38) adds the Git rule that preserves those line endings in future checkouts. These implementation changes are separate from this documentation.
+The running application includes the Portnet datetime fix ([personal PR #39](https://github.com/aminnkhann/portpulse/pull/39), [DCI PR #42](https://github.com/dci-fbw-dataeng-python-25-a/amin-final-project/pull/42)), using personal-repository commit `d2cb483`. The startup script was normalized to LF before rebuilding Airflow; [personal PR #38](https://github.com/aminnkhann/portpulse/pull/38) and [DCI PR #41](https://github.com/dci-fbw-dataeng-python-25-a/amin-final-project/pull/41) add the Git rule that preserves those line endings in future checkouts. These implementation changes are separate from this documentation.
 
 ## Airflow: complete pipeline succeeded
 

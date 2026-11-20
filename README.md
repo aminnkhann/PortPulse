@@ -69,13 +69,13 @@ Open [Airflow](http://localhost:8080) and sign in with `admin` / `admin`, unless
 3. `ingest_synthetic_eta`
 4. `build_analytics`
 
-The first task requests the previous seven UTC dates from Digitraffic Portnet V1. The synthetic branch generates and ingests 1,000 fictional port calls with seed 42. The final task builds the dbt models after both branches finish. A successful run means the requests, ingestion steps, and dbt checks completed; it does not establish ETA prediction accuracy or guarantee fresh source data.
+The first task requests seven UTC dates from Digitraffic Portnet V1: the DAG run's UTC date and the preceding six days. The synthetic branch generates and ingests 1,000 fictional port calls with seed 42. The final task builds the dbt models after both branches finish. A successful run means the requests, ingestion steps, and dbt checks completed; it does not establish ETA prediction accuracy or guarantee fresh source data.
 
 ### 7. Verify Metabase dashboards
 
 Open [Metabase](http://localhost:3000) and sign in with `admin@example.test` / `portpulse-local-demo-2026`, unless you changed `METABASE_ADMIN_EMAIL` and `METABASE_ADMIN_PASSWORD`. In the `PortPulse` collection, look for these three dashboards:
 
-- **PortPulse — Portnet Overview (REAL API DATA)** shows captured real Portnet observations. Counts vary with the live API and can be zero if no eligible observations are returned.
+- **PortPulse — Portnet Overview** shows captured real Portnet observations. Counts vary with the live API and can be zero if no eligible observations are returned.
 - **PortPulse — Synthetic ETA Analytics (SIMULATED DATA)** shows the separate fictional seed-42 data. Its expected dataset has 3,496 accepted ETA observations, 90 rejected events, and 142 duplicate-delivery issues. These are repeatable seed results, not real vessel calls.
 - **PortPulse — Kafka CDC Demo (SIMULATED DATA)** shows the separate optional simulated CDC path. It can be empty until you run the [CDC demonstration](docs/streaming_cdc.md).
 

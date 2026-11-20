@@ -32,7 +32,13 @@ Expected: `db`, `metabase`, `kafka`, and `kafka-connect` become healthy; `airflo
 
 Open `http://localhost:18080`, sign in with the local credentials, trigger `portpulse_full_pipeline`, and wait for `fetch_real_portnet`, `generate_synthetic_eta`, `ingest_synthetic_eta`, and `build_analytics` to succeed. The real task processes one UTC day at a time; earlier daily ingestion transactions may commit even if a later day fails. A successful dbt task does not prove source freshness.
 
-The independent synthetic DAG is `portpulse_synthetic_demo`. For exact seed assertions, trigger it with `{"port_calls":1000,"seed":42}` and wait for all three tasks to succeed. The expected deterministic dataset is 1,000 fictional calls, 3,496 accepted ETA observations, 90 rejected events, 142 duplicate-delivery issues, and zero ID collisions. These synthetic records must remain in `synthetic_demo`, not the real Portnet or CDC tables.
+The independent synthetic DAG is `portpulse_synthetic_demo`. It is initially paused, so unpause it before triggering the test:
+
+```sh
+docker compose exec -T airflow airflow dags unpause portpulse_synthetic_demo
+```
+
+For exact seed assertions, trigger it with `{"port_calls":1000,"seed":42}` and wait for all three tasks to succeed. The expected deterministic dataset is 1,000 fictional calls, 3,496 accepted ETA observations, 90 rejected events, 142 duplicate-delivery issues, and zero ID collisions. These synthetic records must remain in `synthetic_demo`, not the real Portnet or CDC tables.
 
 ## 4. Check database assertions
 

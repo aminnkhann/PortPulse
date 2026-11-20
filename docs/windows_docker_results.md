@@ -66,13 +66,44 @@ An ETA moving later means the estimated time changed; an ETA moving earlier mean
 
 ## Kafka CDC — additional Windows verification
 
-The owner reports a separate Windows CDC run with the following results. The existing [CDC Airflow screenshot](images/portpulse-streaming-cdc-airflow-success.png) shows a successful portpulse_streaming_cdc run with both task rows green. The accompanying owner verification reports that the Debezium connector and its task were RUNNING before simulation; a fresh scenario produced two creates, two updates, and one delete; both consume_cdc_batch and build_streaming_dbt_models succeeded; and Kafka consumer lag was zero on all three topic partitions.
+### Owner-supplied Windows run evidence (20 November 2026)
 
-The reported latest-state result for that scenario contained only SIM-001 at 2026-11-13 14:50:00+00. SIM-002 had been deleted. A later Metabase dashboard view reportedly showed ten cumulative CDC events and two active simulated calls from two completed scenarios. These cumulative values are expected when exactly two such scenarios are stored and no other scenarios exist; they are not guaranteed for an existing database.
+The project owner supplied a Windows PowerShell transcript, a newer Metabase CDC dashboard screenshot, and an Airflow CDC screenshot in the project conversation. The [CDC Airflow success screenshot](images/portpulse-streaming-cdc-airflow-success.png) is already committed to this repository. These observations document the successful **manual CDC micro-batch demonstration on that Windows host**; they are not a fresh execution by this documentation change.
 
-The repository does not contain the later CDC Metabase screenshot. The older [CDC dashboard image](images/cdc_demo.png) shows one active call in the mentor-review scenario; it does not evidence the later ten-event/two-call view. The selected scenario ID, the CDC Airflow run ID, the exact capture time for the later dashboard, and a screenshot or saved command output for connector status and per-partition lag were not supplied. The reported values are therefore distinguished here from the directly reviewable screenshot evidence.
+| Check | Observed result |
+|---|---|
+| Docker services | PostgreSQL, Kafka, Kafka Connect, and Metabase healthy; Airflow running; `bi-setup`, `cdc-setup`, `cdc-topic-setup`, and `kafka-volume-init` exited successfully |
+| Debezium connector | `portpulse-postgres-cdc` RUNNING (version `3.7.1.Final`) |
+| Debezium task | Task 0 RUNNING |
+| Fresh scenario ID | `acceptance-c319afe50133` |
+| Source changes | INSERT `SIM-001`, UPDATE `SIM-001` twice, INSERT `SIM-002`, DELETE `SIM-002` |
+| Airflow CDC run ID | `manual__2026-11-20T10:07:10.039623+00:00` |
+| Airflow tasks | `consume_cdc_batch` and `build_streaming_dbt_models`: Success; screenshot shows zero failed tasks and a run lasting approximately 28.8 seconds |
+| Selected-scenario CDC history | `c = 2`, `u = 2`, `d = 1` (five stored change-operation rows) |
+| Selected-scenario latest state | Only `SIM-001`, `eta_utc = 2026-11-13 14:50:00+00`; deleted `SIM-002` absent |
+| Kafka consumer lag | 0 for all three partitions: partition 0 at 3/3, partition 1 at 3/3, partition 2 at 6/6 (consumer offset/log end) |
 
-The README's [CDC reproduction steps](../README.md#optional-kafka-cdc-demonstration) provide the copy-pasteable Windows PowerShell and Bash commands. These read-only queries check cumulative dashboard values:
+The CLI reported that consumer group `portpulse-streaming-cdc` had no **active** members at the time of inspection. This is expected for a manually triggered micro-batch consumer after its work finishes; the recorded consumer offsets and zero lag are the relevant catch-up evidence.
+
+The later **owner-provided Metabase CDC screenshot** visibly showed 10 cumulative CDC events (Create 4, Update 4, Delete 2), two active simulated calls, and two active calls in area `VUOS`. Those dashboard totals are consistent with two completed five-operation scenarios and one surviving call per scenario. They are **cumulative across scenarios**, not the result of the single `acceptance-c319afe50133` run alone and not fixed expectations for another database.
+
+### Reproduction and evidence limits
+
+The README's [CDC reproduction steps](../README.md#optional-kafka-cdc-demonstration) create a **new** scenario ID and provide PowerShell/Bash commands for connector checks, simulator changes, Airflow runs, per-scenario SQL assertions, and Kafka consumer lag. For the owner's reported scenario, the read-only SQL shape is:
+
+```sql
+SELECT operation, count(*)
+FROM stream_demo.port_eta_cdc_event
+WHERE scenario_id = 'acceptance-c319afe50133'
+GROUP BY operation ORDER BY operation;
+
+SELECT port_call_id, eta_utc
+FROM analytics.mart_stream_latest_eta
+WHERE scenario_id = 'acceptance-c319afe50133'
+ORDER BY port_call_id;
+```
+
+These two queries describe how to **recheck the existing owner's run**. A fresh run must use its new scenario ID. To compare cumulative dashboard cards against the current database, query:
 
 ```sql
 SELECT count(*) AS cdc_events FROM analytics.stg_stream_eta_changes;
@@ -82,12 +113,11 @@ FROM analytics.mart_stream_latest_eta
 ORDER BY scenario_id, port_call_id;
 ```
 
-For one selected scenario, query stream_demo.port_eta_cdc_event by scenario_id and group by operation; the expected result is c = 2, u = 2, d = 1. Query analytics.mart_stream_latest_eta for that same scenario to confirm only SIM-001 remains at the expected ETA. The run-specific query is in the README because the scenario ID must be generated anew for each execution.
+**Evidence boundary:** the owner supplied the newer 10-event/two-call CDC Metabase screenshot in the conversation, but that image is **not yet committed to this repository**; [`cdc_demo.png`](images/cdc_demo.png) is an older, different scenario capture and must not be presented as the newer screenshot. The original terminal transcript and connector/lag output also remain in the conversation rather than versioned log files. The existing CDC Airflow screenshot is versioned and directly reviewable. Exact commands, outputs, and run IDs above were transcribed from owner-supplied evidence; this documentation update did not independently rerun the Windows stack or verify a post-merge clean clone of the latest `main`.
 
-Each completed scenario contributes five stored Debezium operation rows and one active simulated call. Therefore two scenarios produce ten cumulative operation rows and two active calls only when the database contains those two scenarios alone. Existing data can raise either dashboard total.
 
 ## Verification
 
-All six screenshots currently stored under docs/images were visually inspected. The Airflow CLI confirmed the main run and all four tasks were successful. Read-only SQL checks confirmed the observation, latest-ETA, revision, and synthetic quality totals above. The two main-run Metabase dashboards rendered their charts and tables without a browser page error during capture. The owner reports the CDC results summarized above; the later CDC Metabase screenshot and CDC run metadata are missing from this repository.
+The six screenshots currently stored under docs/images were visually inspected during the original review. The main Airflow run and the original two Metabase dashboards, along with their PostgreSQL totals, were checked as described above. For CDC, the owner supplied the scenario ID, exact Airflow run ID, operation counts, current-state result, connector status, zero-lag partition results, and screenshots during this conversation. The newer CDC Metabase image and the terminal transcript are not yet versioned in this repository; their observations are recorded accurately above without treating a chat attachment as committed evidence.
 
 This report documents prior runs; this documentation update does not rerun ingestion or change application behavior. To reproduce the main workflow, follow [Reproduce and Verify the Results](../README.md#reproduce-and-verify-the-results); follow the [CDC guide](streaming_cdc.md) for connector and micro-batch details. The full [final acceptance checklist](final_acceptance_checklist.md) remains NOT RUN because its complete set of repeat-run and acceptance-record checks has not been reported as completed.

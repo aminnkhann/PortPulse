@@ -77,6 +77,44 @@ class AirflowDagTests(unittest.TestCase):
         self.assertEqual(run_command.call_args.args[0][-1], "2026-11-11")
 
     @patch("dags.portpulse_daily_pipeline.subprocess.run")
+    @patch("dags.portpulse_daily_pipeline.get_current_context")
+    def test_manual_ingestion_uses_run_after_when_logical_date_is_missing(
+        self, get_context, run_command
+    ):
+        get_context.return_value = {
+            "dag_run": SimpleNamespace(
+                conf={},
+                run_after=datetime.fromisoformat("2026-11-12T00:30:00+02:00"),
+            ),
+            "logical_date": None,
+        }
+
+        ingest_portnet()
+
+        self.assertEqual(run_command.call_args.args[0][-1], "2026-11-11")
+
+    @patch("dags.portpulse_daily_pipeline.subprocess.run")
+    @patch("dags.portpulse_daily_pipeline.get_current_context")
+    def test_ingestion_rejects_missing_or_naive_run_timestamp(
+        self, get_context, run_command
+    ):
+        for logical_date, run_after in (
+            (None, None),
+            (
+                datetime(2026, 11, 12),
+                datetime.fromisoformat("2026-11-12T00:30:00+02:00"),
+            ),
+        ):
+            with self.subTest(logical_date=logical_date, run_after=run_after):
+                get_context.return_value = {
+                    "dag_run": SimpleNamespace(conf={}, run_after=run_after),
+                    "logical_date": logical_date,
+                }
+                with self.assertRaisesRegex(ValueError, "timezone-aware"):
+                    ingest_portnet()
+        run_command.assert_not_called()
+
+    @patch("dags.portpulse_daily_pipeline.subprocess.run")
     def test_dbt_failure_propagates(self, run_command):
         run_command.side_effect = subprocess.CalledProcessError(1, "dbt")
 

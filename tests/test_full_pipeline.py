@@ -75,6 +75,67 @@ class FullPipelineTests(unittest.TestCase):
             ["2026-11-17"],
         )
 
+    @patch("dags.portpulse_full_pipeline.time.sleep")
+    @patch("dags.portpulse_full_pipeline.subprocess.run")
+    @patch("dags.portpulse_full_pipeline.get_current_context")
+    def test_manual_run_uses_run_after_when_logical_date_is_missing(
+        self, context, run, sleep
+    ):
+        context.return_value = {
+            "dag_run": SimpleNamespace(
+                conf={"lookback_days": 1},
+                logical_date=None,
+                run_after=datetime.fromisoformat("2026-11-22T00:30:00+02:00"),
+            )
+        }
+
+        fetch_real_portnet()
+
+        self.assertEqual(run.call_args.args[0][-1], "2026-11-21")
+        sleep.assert_not_called()
+
+    @patch("dags.portpulse_full_pipeline.time.sleep")
+    @patch("dags.portpulse_full_pipeline.subprocess.run")
+    @patch("dags.portpulse_full_pipeline.get_current_context")
+    def test_explicit_run_date_overrides_run_timestamp(
+        self, context, run, sleep
+    ):
+        context.return_value = {
+            "dag_run": SimpleNamespace(
+                conf={"run_date": "2026-11-20", "lookback_days": 2},
+                logical_date=datetime.fromisoformat("2026-11-17T12:00:00+00:00"),
+                run_after=datetime.fromisoformat("2026-11-21T12:00:00+00:00"),
+            )
+        }
+
+        fetch_real_portnet()
+
+        self.assertEqual(
+            [call.args[0][-1] for call in run.call_args_list],
+            ["2026-11-19", "2026-11-20"],
+        )
+        sleep.assert_called_once_with(1)
+
+    @patch("dags.portpulse_full_pipeline.subprocess.run")
+    @patch("dags.portpulse_full_pipeline.get_current_context")
+    def test_rejects_missing_or_naive_run_timestamp(self, context, run):
+        for logical_date, run_after in (
+            (None, None),
+            (
+                datetime(2026, 11, 17),
+                datetime.fromisoformat("2026-11-17T12:00:00+00:00"),
+            ),
+        ):
+            with self.subTest(logical_date=logical_date, run_after=run_after):
+                context.return_value = {
+                    "dag_run": SimpleNamespace(
+                        conf={}, logical_date=logical_date, run_after=run_after
+                    )
+                }
+                with self.assertRaisesRegex(ValueError, "timezone-aware"):
+                    fetch_real_portnet()
+        run.assert_not_called()
+
     def test_rejects_invalid_config(self):
         for conf in (
             {"lookback_days": 0},

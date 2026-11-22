@@ -31,10 +31,14 @@ def _run_date(context: dict) -> str:
             raise ValueError("run_date must use YYYY-MM-DD format")
         return parsed_date.isoformat()
 
-    logical_date = context.get("logical_date")
-    if logical_date is None or logical_date.utcoffset() is None:
-        raise ValueError("Airflow run must have a timezone-aware logical date")
-    return logical_date.astimezone(timezone.utc).date().isoformat()
+    run_time = context.get("logical_date")
+    if run_time is None:
+        run_time = context["dag_run"].run_after
+    if run_time is None or run_time.utcoffset() is None:
+        raise ValueError(
+            "Airflow run must have a timezone-aware logical date or run_after"
+        )
+    return run_time.astimezone(timezone.utc).date().isoformat()
 
 
 def ingest_portnet() -> None:

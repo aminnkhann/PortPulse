@@ -1,10 +1,29 @@
 # Acceptance evidence — 22 November 2026 (existing Windows stack)
 
-**Status: PASS for the specific observed checks listed below; full isolated clean-clone acceptance remains NOT COMPLETE.**
+**Status: PASS for the specific observed checks listed below; full isolated clean-clone acceptance remains NOT COMPLETE.** A separate manual Main DAG run failed on the tested revision; the date-handling fix and regression tests are recorded below, and isolated Docker retesting remains pending.
 
 This records results supplied by the project owner from their existing Windows Docker environment, reported on 22 November 2026. These tests were **not performed in a separate `portpulse-acceptance` Compose project**, and this documentation commit did not rerun Docker. The author reviewed the owner-provided terminal output and Airflow screenshots in conversation. Those particular 22 November screenshots and full terminal transcripts are **not yet committed as files** in this repository; the observations are transcribed below with their evidence limits.
 
 **Reference revision:** personal GitHub `main` was at `79db664d9f7451464db77e4f1b02f234da5cfb75` when this record was prepared. The exact commit checked out on the owner's Windows machine was **not captured**, so do not treat the GitHub reference revision as a verified host revision.
+
+## Manual DAG run date failure and fix — 22 November 2026
+
+- Tested revision: `55879bed5bd827f19647c44cc98d4b56df3a5ec6`
+- DAG run: `portpulse_full_pipeline`, `manual__2026-11-22T11:07:08.013480+00:00`
+- Failed task: `fetch_real_portnet`
+- Observed exception: `AttributeError: 'NoneType' object has no attribute 'astimezone'`
+- Root cause: the task assumed every `dag_run.logical_date` was set. In this manual run it was `None`, and the task called `.astimezone()` on it.
+
+The installed Airflow SDK is 3.4.0. Its `DagRun.run_after` column is a timezone-aware `TIMESTAMP`; a constructed `DagRun` with `logical_date=None` retained its supplied timezone-aware `run_after`. The fix uses `logical_date` when present and otherwise `run_after`, converts the selected value to UTC, and raises a clear `ValueError` if the timestamp is missing or naive. The daily DAG uses the same fallback. Explicit `run_date`, `lookback_days`, and `portnet_dates()` validation are preserved.
+
+**Checks run for the fix branch:**
+
+- **PASS:** focused Main and Daily DAG unit tests — 14 tests passed, including manual `run_after` fallback, logical-date UTC boundary conversion, explicit `run_date`, lookback windows, and missing/naive timestamps.
+- **PASS:** `python -m compileall` for both DAGs and their tests; `git diff --check`.
+- **LIMIT:** the full two-module unit-test run had one unrelated import failure in the Airflow `DagBag` test because this local virtualenv lacks `airflow.providers.apache.kafka` (the dependency is specified in `requirements.txt`). The other 14 tests passed.
+- **PENDING:** no Docker/Airflow integration test was run for the fix. In the isolated acceptance project, manually trigger `portpulse_full_pipeline` with no `run_date` override and verify `fetch_real_portnet` succeeds using the run's UTC `run_after` date. Do not remove or overwrite the existing acceptance environment or its volumes.
+
+The overall acceptance status remains **NOT COMPLETE** until this isolated manual-trigger retest and the remaining checklist items pass.
 
 ## 1. Real / Synthetic ID-pattern separation — PASS
 

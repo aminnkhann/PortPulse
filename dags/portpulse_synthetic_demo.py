@@ -9,12 +9,13 @@ from airflow.providers.standard.operators.python import PythonOperator
 from airflow.sdk import DAG
 
 from scripts.synthetic_airflow_tasks import (
-    validate_run_config,
-    input_path_for_run,
+    validate_run_config as validate_run_config,
+    input_path_for_run as input_path_for_run,
     generate_synthetic_events,
     ingest_synthetic_events,
     build_synthetic_eta_analytics,
 )
+
 with DAG(
     dag_id="portpulse_synthetic_demo",
     description="Generate, ingest, and model isolated synthetic ETA events",

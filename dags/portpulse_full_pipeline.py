@@ -13,7 +13,7 @@ import pendulum
 from airflow.providers.standard.operators.python import PythonOperator
 from airflow.sdk import DAG, get_current_context
 
-from dags.portpulse_synthetic_demo import (
+from scripts.synthetic_airflow_tasks import (
     generate_synthetic_events,
     ingest_synthetic_events,
     build_synthetic_eta_analytics,

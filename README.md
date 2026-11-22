@@ -93,6 +93,121 @@ Open [Airflow](http://localhost:8080) and sign in with admin / admin unless chan
 
 The default Portnet window is seven dates: the DAG run's UTC date and the preceding six dates. Digitraffic responses vary, and a run may have no eligible ETA observations. The synthetic branch uses the default 1,000-call seed-42 dataset. dbt runs after both ingestion branches complete. Open [Metabase](http://localhost:3000); default local sign-in is admin@example.test / portpulse-local-demo-2026 unless changed in .env.
 
+## Running the Complete Test Suite with uv (86 Tests)
+
+These commands are verified on Linux/Ubuntu with Bash. The complete integration run uses a separate Docker Compose project and PostgreSQL volume; tests do not connect to the `portpulse-main` database. The committed `uv.lock` keeps the resolved Python 3.12 dependency set reproducible.
+
+### A. Prerequisites
+
+Install Git, Docker Engine or Docker Desktop with Linux containers, Docker Compose v2, and uv. Install Python through uv and sync the project dependencies, including pytest and Ruff:
+
+```bash
+uv python install 3.12
+uv sync --python 3.12
+```
+
+Run these commands from the repository root. Airflow is pinned at 3.4.0. Avoid upgrading Airflow or its providers independently of the lockfile; Docker and GitHub Actions continue to install Airflow with its official Python 3.12 constraints.
+
+### B. Run unit tests without PostgreSQL
+
+With the integration-test variables unset, run:
+
+```bash
+unset PORTPULSE_TEST_DATABASE_URL METABASE_DB_PASSWORD
+uv run pytest -v
+```
+
+The verified baseline was **68 passed, 18 skipped**. The skipped tests need the separate PostgreSQL integration environment; the Metabase permission test also needs the `metabase_reader` role configured below. These counts describe the verified project version and can change as tests are added.
+
+### C. Start an isolated PostgreSQL test database
+
+Set the test-only port and local credentials. The defaults match the repository's local demo credentials; set these variables to your chosen test credentials before continuing if you override them:
+
+```bash
+export POSTGRES_PORT=15432
+export POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-admin}"
+export METABASE_DB_PASSWORD="${METABASE_DB_PASSWORD:-portpulse-local-reader}"
+```
+
+Start only the database under a separate Compose project:
+
+```bash
+docker compose -p portpulse-itest up -d db
+docker compose -p portpulse-itest exec -T db pg_isready -U portpulse -d portpulse
+```
+
+Wait until `pg_isready` reports that PostgreSQL is accepting connections. On a fresh `portpulse-itest` volume, the official PostgreSQL image applies the SQL files mounted from `migrations/` in filename order. It runs those initialization files only when the database volume is empty. If you need a fresh test database later, use another project name and unused host port instead of deleting a volume.
+
+`portpulse-main` is the normal application stack and has its own database volume. `portpulse-itest` is the separate integration-test stack and uses `portpulse-itest_postgres_data`; the main stack uses `portpulse-main_postgres_data`. Keep the integration-test URL on port `15432` so tests cannot target the main database on port `5432`.
+
+### D. Prepare dbt models and the Metabase reader role
+
+Build the project image used by `bi-setup`:
+
+```bash
+docker compose -p portpulse-itest build bi-setup
+```
+
+Build dbt models in the isolated database. The Airflow image has an Airflow entrypoint, so invoke dbt from Python with `subprocess.run(..., check=True)`:
+
+```bash
+docker compose -p portpulse-itest run --no-deps --rm bi-setup python -c "import subprocess; subprocess.run(['dbt', 'build', '--project-dir', '/opt/portpulse/dbt'], check=True)"
+```
+
+Configure `metabase_reader` by calling the existing `configure_reader()` function. This runs inside the `bi-setup` image and uses the test database service credentials:
+
+```bash
+docker compose -p portpulse-itest run --no-deps --rm bi-setup python -c "import os, psycopg; from scripts.setup_metabase import configure_reader; conn=psycopg.connect(host='db', dbname=os.environ['POSTGRES_DB'], user=os.environ['POSTGRES_USER'], password=os.environ['POSTGRES_PASSWORD']); configure_reader(conn, os.environ['METABASE_DB_PASSWORD']); conn.commit(); conn.close()"
+```
+
+The role can read analytics marts but cannot read source tables or modify data. The full suite verifies these permissions. `METABASE_DB_PASSWORD` in the test command must match the value used when configuring the role.
+
+### E. Run all 86 tests
+
+With the local demo credentials, point both integrations at the isolated test server and run pytest:
+
+```bash
+PORTPULSE_TEST_DATABASE_URL="postgresql://portpulse:admin@127.0.0.1:15432/portpulse" \
+METABASE_TEST_HOST=127.0.0.1 \
+METABASE_TEST_PORT=15432 \
+METABASE_DB_PASSWORD=portpulse-local-reader \
+uv run pytest -v
+```
+
+If you override the local test credentials or host port, change the corresponding values in this command too. `METABASE_DB_PASSWORD` must match the password set for `metabase_reader`. The recorded result was:
+
+```text
+86 passed, 21 subtests passed in 17.41s
+```
+
+Runtime varies by machine. Integration tests create isolated schemas and a temporary database inside `portpulse-itest`; their cleanup does not use or remove the `portpulse-main` database.
+
+### F. Troubleshooting
+
+| Problem | Fix |
+|---|---|
+| `ModuleNotFoundError: No module named 'scripts'` or `dags` | Run `uv run pytest -v` from the repository root. `pyproject.toml` configures pytest's import path; do not set `PYTHONPATH` manually. |
+| Missing or incompatible Python | Run `uv python install 3.12`, then `uv sync --python 3.12`. The project requires Python 3.12. |
+| Airflow dependency conflict | Use the committed `uv.lock` with `uv sync`; do not independently upgrade Airflow or providers. Docker and CI install Airflow 3.4.0 using the official 3.12 constraints. |
+| PostgreSQL connection failure | Check `docker compose -p portpulse-itest ps` and `docker compose -p portpulse-itest exec -T db pg_isready -U portpulse -d portpulse`. Confirm the URL uses `127.0.0.1:15432`, not the main stack's port `5432`. |
+| PostgreSQL tests are skipped | Set `PORTPULSE_TEST_DATABASE_URL` to the isolated `portpulse-itest` database as shown above. Do not point it at `portpulse-main`. |
+| Metabase reader authentication fails | Use the same `METABASE_DB_PASSWORD` in the role-configuration command and pytest environment. The test connects as `metabase_reader`. |
+| `analytics` schema or marts are missing | Run the dbt build command in section D against the isolated project. A fresh Docker volume runs migrations automatically; migrations do not rerun on an existing volume. |
+| Port `15432` is occupied | Set `POSTGRES_PORT=15433`, use a distinct project such as `portpulse-itest-alt`, and use that port in the readiness command, database URL, and `METABASE_TEST_PORT`. |
+| `dbt build` is interpreted as an Airflow command | Run it through `bi-setup python -c` with `subprocess.run(..., check=True)` as shown in section D; do not pass `dbt` directly to the Airflow entrypoint. |
+
+**Windows distinction:** this procedure is verified on Linux/Ubuntu, not native Windows PowerShell. On Windows, use WSL 2 with Docker Desktop Linux-container integration and run these Bash commands inside the WSL distribution.
+
+### G. Stop the isolated test environment safely
+
+Stop and remove only the `portpulse-itest` containers and network while preserving its named volume:
+
+```bash
+docker compose -p portpulse-itest down
+```
+
+This leaves `portpulse-main` running and preserves the test database volume. Do not add `-v` and do not remove the main application's database volume.
+
 ## Reproduce and Verify the Results
 
 This section reproduces the main Airflow run and then the optional CDC demo. Docker Compose and psql commands shown in SQL blocks work in both PowerShell and Bash. Do not reset or remove volumes to reproduce results; use a fresh unique CDC scenario ID.

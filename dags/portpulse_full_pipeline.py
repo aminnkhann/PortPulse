@@ -49,7 +49,12 @@ def portnet_dates(conf: dict, now: date) -> list[str]:
 
 def fetch_real_portnet() -> None:
     run = get_current_context()["dag_run"]
-    run_date = run.logical_date.astimezone(timezone.utc).date()
+    run_time = run.logical_date if run.logical_date is not None else run.run_after
+    if run_time is None or run_time.utcoffset() is None:
+        raise ValueError(
+            "Airflow run must have a timezone-aware logical date or run_after"
+        )
+    run_date = run_time.astimezone(timezone.utc).date()
     dates = portnet_dates(run.conf or {}, run_date)
     LOGGER.info("Fetching Portnet dates %s through %s", dates[0], dates[-1])
     for i, day in enumerate(dates):

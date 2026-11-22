@@ -97,9 +97,7 @@ class FullPipelineTests(unittest.TestCase):
     @patch("dags.portpulse_full_pipeline.time.sleep")
     @patch("dags.portpulse_full_pipeline.subprocess.run")
     @patch("dags.portpulse_full_pipeline.get_current_context")
-    def test_explicit_run_date_overrides_run_timestamp(
-        self, context, run, sleep
-    ):
+    def test_explicit_run_date_overrides_run_timestamp(self, context, run, sleep):
         context.return_value = {
             "dag_run": SimpleNamespace(
                 conf={"run_date": "2026-11-20", "lookback_days": 2},
